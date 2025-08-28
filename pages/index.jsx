@@ -847,4 +847,5 @@ export default function Page() {
                   <th className="text-left p-2 font-semibold">Name</th>
                   <th className="text-left p-2 font-semibold">Type</th>
                   <th className="text-left p-2 font-semibold">Level</th>
-                  <th className="text-left p-2 font-s
+                  <th className="text-left p-2 font-semibold">Parent</th>
+
