@@ -575,52 +575,67 @@ export default function Page() {
   }
 
   async function exportJSON() {
+  try {
+    const dataStr = JSON.stringify(nodes, null, 2);
+    const suggested = "module1_assets_" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+
+    // Save Picker
     try {
-      const dataStr = JSON.stringify(nodes, null, 2);
-      const suggested = "module1_assets_" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
-
-      // Save Picker
-      try {
-        if (typeof window !== "undefined" && window.isSecureContext && typeof window.showSaveFilePicker === "function") {
-          const handle = await window.showSaveFilePicker({
-            suggestedName: suggested,
-            excludeAcceptAllOption: false,
-            types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
-            startIn: "downloads",
-          });
-          const writable = await handle.createWritable();
-          await writable.write(new Blob([dataStr], { type: "application/json" }));
-          await writable.close();
-          return;
-        }
-      } catch (e) { if (e && (e.name === "AbortError" || e.name === "NotAllowedError")) return; }
-
-      // Object URL
-      try {
-        const blob = new Blob([dataStr], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.style.display = "none"; a.href = url; a.download = suggested; document.body.appendChild(a);
-        a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-        setTimeout(() => { try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch {} }, 1500);
+      if (typeof window !== "undefined" && window.isSecureContext && typeof window.showSaveFilePicker === "function") {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: suggested,
+          excludeAcceptAllOption: false,
+          types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+          startIn: "downloads",
+        });
+        const writable = await handle.createWritable();
+        await writable.write(new Blob([dataStr], { type: "application/json" }));
+        await writable.close();
         return;
-      } catch (e2) {}
+      }
+    } catch (e) { if (e && (e.name === "AbortError" || e.name === "NotAllowedError")) return; }
 
-      // New tab
-      try {
-        const w = window.open("", "_blank");
-        if (w) {
-          w.document.open();
-          const safe = String(dataStr).replace(/[&<>]/g, (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s]));
-          w.document.write("<!doctype html><meta charset=\\"utf-8\\"><title>" + suggested + "</title><pre style=\\"white-space:pre-wrap;word-wrap:break-word;padding:16px;\\">" + safe + "</pre>");
-          w.document.close();
-          return;
-        }
-      } catch (e3) {}
+    // Object URL
+    try {
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = suggested;
+      document.body.appendChild(a);
+      a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      setTimeout(() => {
+        try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch {}
+      }, 1500);
+      return;
+    } catch (e2) {}
 
-      alert('Export failed due to sandbox limitations. Try on HTTPS domain or enable "Ask where to save each file before downloading".');
-    } catch (err) { alert("Export error: " + (err && err.message ? err.message : String(err))); }
+    // New tab (SAFE QUOTING, no escapes)
+    try {
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.open();
+        const safe = String(dataStr).replace(/[&<>]/g, (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s]));
+        const html = [
+          "<!doctype html>",
+          '<meta charset="utf-8">',
+          "<title>" + suggested + "</title>",
+          '<pre style="white-space:pre-wrap;word-wrap:break-word;padding:16px;">',
+          safe,
+          "</pre>"
+        ].join("");
+        w.document.write(html);
+        w.document.close();
+        return;
+      }
+    } catch (e3) {}
+
+    alert('Export failed due to sandbox limitations. Try on HTTPS domain or enable "Ask where to save each file before downloading".');
+  } catch (err) {
+    alert("Export error: " + (err && err.message ? err.message : String(err)));
   }
+}
 
   async function exportCSV() {
     try {
