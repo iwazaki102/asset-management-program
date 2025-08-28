@@ -1,2 +1,2 @@
 # asset-management-program1
-Asset Management Program berbasis RAMS
+RAMS based Asset Management App
