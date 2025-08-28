@@ -1,12 +1,17 @@
-"use client";
-import React, { useEffect, useMemo, useState } from "react";
 import Head from "next/head";
+import React, { useEffect, useMemo, useState } from "react";
 
-// ===== Module 1 – Asset Registry & Hierarchy (Clean Build v7.13.10) =====
-// Hotfix: Restore full React code (previous canvas overwrite left plain text and broke build).
-// Notes: SSR-safe (guards window/localStorage/FS API), strict JSX closing, stable on Next.js + Vercel.
+/**
+ * Module 1 – Asset Registry & Hierarchy
+ * Clean Build v7.14.0
+ * - Component parent can be System OR Subsystem
+ * - Subsystem L1 parent must be System; Lk parent must be Subsystem L(k-1)
+ * - If parent already chosen by user, do NOT show "Multiple parents..." prompt
+ * - Parent options for Component include System + all Subsystems
+ * - Auto-default parent never clears if still valid
+ * - Safe exportJSON document.write (no fragile escapes)
+ */
 
-// ——————————————————————————————————————————————————————————
 // Local Storage keys
 const LS_KEY = "module1_asset_nodes";
 const LS_PREF = {
@@ -15,6 +20,7 @@ const LS_PREF = {
   collapsed: "module1_pref_collapsed_ids",
   importPolicy: "module1_pref_import_policy",
 };
+
 const LEGACY_KEYS = [
   "module1_asset_nodes_v4",
   "module1_asset_nodes_v3",
@@ -22,8 +28,7 @@ const LEGACY_KEYS = [
   "module1_asset_nodes_v1",
 ];
 
-// ——————————————————————————————————————————————————————————
-// Helpers: storage & data
+// Helpers
 function uid() { return Math.random().toString(36).slice(2, 10); }
 function safeNow() { try { return Date.now(); } catch { return new Date().getTime(); } }
 function readKey(key) {
@@ -91,7 +96,6 @@ function loadInitial() {
   return [];
 }
 
-// ——————————————————————————————————————————————————————————
 // Tree helpers
 function toTree(nodes) {
   const map = new Map();
@@ -128,7 +132,6 @@ function getAllWithChildrenIds(tree) {
   return ids;
 }
 
-// ——————————————————————————————————————————————————————————
 // Rules
 function checkParentRule(childType, lvl, parent) {
   if (childType === "System") return { ok: true };
@@ -139,7 +142,10 @@ function checkParentRule(childType, lvl, parent) {
     return Number(parent.level) === lvl - 1 ? { ok: true } : { ok: false, err: `Parent of Subsystem L${lvl} must be Subsystem L${lvl - 1}` };
   }
   if (childType === "Component") {
-    return parent && parent.type === "Subsystem" ? { ok: true } : { ok: false, err: "Parent of Component must be a Subsystem" };
+    // Relaxed rule: parent may be System OR Subsystem
+    return parent && (parent.type === "System" || parent.type === "Subsystem")
+      ? { ok: true }
+      : { ok: false, err: "Parent of Component must be a System or a Subsystem" };
   }
   return { ok: false, err: "Unknown type" };
 }
@@ -157,20 +163,19 @@ function findDuplicateNode(list, { id, name, type, level, parentId }, ignoreId =
   );
 }
 function nextIndexedName(baseName, siblingNames) {
-  const m = String(baseName).match(/^(.*?)(\\((\\d+)\\))?\\s*$/);
+  const m = String(baseName).match(/^(.*?)(\((\d+)\))?\s*$/);
   const root = (m ? m[1] : String(baseName)).trim();
   const used = new Set();
   siblingNames.forEach((s) => {
-    const esc = root.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
-    const mm = String(s).match(new RegExp("^" + esc + "(?:\\\\((\\\\d+)\\\\))?$"));
+    const esc = root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const mm = String(s).match(new RegExp("^" + esc + "(?:\\((\\d+)\\))?$"));
     if (mm) used.add(mm[1] ? Number(mm[1]) : 0);
   });
   let n = 1; while (used.has(n)) n++;
   return `${root}(${n})`;
 }
 
-// ——————————————————————————————————————————————————————————
-// Non-UI dev tests (call in console: window.__module1RunTests())
+// Dev tests (run in console)
 function __buildTests() {
   const sys = { id: "S", type: "System", name: "Root", level: null };
   const s1 = { id: "A", type: "Subsystem", name: "L1", level: 1, parentId: "S" };
@@ -186,7 +191,7 @@ function __buildTests() {
   results.push(["Sub L2 -> System (fail)", !checkParentRule("Subsystem", 2, sys).ok]);
   results.push(["Sub L2 -> Sub L1", checkParentRule("Subsystem", 2, s1).ok]);
   results.push(["Component -> Subsystem", checkParentRule("Component", null, s2).ok]);
-  results.push(["Component -> System (fail)", !checkParentRule("Component", null, sys).ok]);
+  results.push(["Component -> System", checkParentRule("Component", null, sys).ok]);
 
   // Tree
   const t = toTree(list);
@@ -215,7 +220,6 @@ function __buildTests() {
   return { pass, total: results.length, results };
 }
 
-// ——————————————————————————————————————————————————————————
 // UI atoms
 function Card({ children, className = "" }) {
   return <div className={"rounded-2xl shadow-md border border-gray-200 bg-white " + className}>{children}</div>;
@@ -291,9 +295,8 @@ function Tree({ nodes, collapsedIds, onToggle }) {
   );
 }
 
-// ——————————————————————————————————————————————————————————
-// App
-export default function Page() {
+// Page
+export default function HomePage() {
   const [nodes, setNodes] = useState([]);
   const [history, setHistory] = useState([]);
 
@@ -351,18 +354,23 @@ export default function Page() {
       const candidates = lv === 1
         ? nodes.filter((n) => n.type === "System")
         : nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === lv - 1);
-      if (parentId && !candidates.some((c) => c.id === parentId)) setParentId("");
-      if (!parentId && candidates.length === 1) setParentId(candidates[0].id);
+      // keep selected parent if still valid
+      if (parentId && candidates.some((c) => c.id === parentId)) return;
+      // else pick auto if exactly one
+      if (candidates.length === 1) { setParentId(candidates[0].id); return; }
+      // otherwise leave empty
+      setParentId("");
       return;
     }
     if (type === "Component") {
-      const candidates = nodes.filter((n) => n.type === "Subsystem");
-      if (parentId && !candidates.some((c) => c.id === parentId)) setParentId("");
-      if (!parentId && candidates.length === 1) setParentId(candidates[0].id);
+      const candidates = nodes.filter((n) => n.type === "Subsystem" || n.type === "System");
+      if (parentId && candidates.some((c) => c.id === parentId)) return;
+      if (candidates.length === 1) { setParentId(candidates[0].id); return; }
+      setParentId("");
       return;
     }
     if (type === "System") setParentId("");
-  }, [type, subsystemLevel, nodes, parentId]);
+  }, [type, subsystemLevel, nodes]); // intentionally omit parentId to avoid loops
 
   // Parent options (add)
   const addParentOptions = useMemo(() => {
@@ -373,7 +381,7 @@ export default function Page() {
       if (lv === 1) return nodes.filter((n) => n.type === "System").slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
       return nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === lv - 1).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
     }
-    if (type === "Component") return nodes.filter((n) => n.type === "Subsystem").slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    if (type === "Component") return nodes.filter((n) => n.type === "Subsystem" || n.type === "System").slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
     return [];
   }, [type, subsystemLevel, nodes]);
 
@@ -389,7 +397,7 @@ export default function Page() {
       if (lv === 1) return nodes.filter((n) => n.type === "System" && !blocked.has(n.id)).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
       return nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === lv - 1 && !blocked.has(n.id)).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
     }
-    if (editType === "Component") return nodes.filter((n) => n.type === "Subsystem" && !blocked.has(n.id)).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    if (editType === "Component") return nodes.filter((n) => (n.type === "Subsystem" || n.type === "System") && !blocked.has(n.id)).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
     return [];
   }, [editingId, editType, editLevel, nodes]);
 
@@ -420,7 +428,6 @@ export default function Page() {
 
   function pushHistory() { setHistory((h) => [JSON.parse(JSON.stringify(nodes)), ...h].slice(0, 50)); }
 
-  // ——————————————————————————————————————————————————————————
   // CRUD
   function addNode() {
     try {
@@ -437,8 +444,17 @@ export default function Page() {
         const v = Number(subsystemLevel);
         if (!Number.isFinite(v) || v < 1) { alert("Subsystem Level must be a number >= 1"); return; }
         lvl = v;
-        if (!parent) {
-          const candidates = v === 1 ? nodes.filter((n) => n.type === "System") : nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === v - 1);
+        const candidates = v === 1
+          ? nodes.filter((n) => n.type === "System")
+          : nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === v - 1);
+        if (parent) {
+          // User already chose a parent → just validate
+          if (!candidates.some((c) => c.id === parent.id)) {
+            alert(v === 1 ? "Selected Parent must be a System for Subsystem L1" : `Selected Parent must be Subsystem L${v - 1} for Subsystem L${v}`);
+            return;
+          }
+        } else {
+          // Help user choose
           if (candidates.length === 1) { parent = candidates[0]; try { setParentId(parent.id); } catch {} }
           else if (candidates.length === 0) { alert(v === 1 ? "Please add a System first." : `Please create Subsystem L${v - 1} first.`); return; }
           else { alert(`Multiple parents found. Please choose a Parent (${v === 1 ? "System" : `Subsystem L${v - 1}`}).`); return; }
@@ -449,7 +465,7 @@ export default function Page() {
       const dupe = findDuplicateNode(nodes, key);
       if (dupe) {
         const overwrite = confirm(
-          `Duplicate detected in the same level (Type/Parent/Name).\\n\\nName: ${nm}\\nType: ${type}${type === "Subsystem" && lvl ? ` L${lvl}` : ""}\\nParent: ${parent ? parent.name : "-"}\\n\\nOK = Overwrite existing, Cancel = Insert with index (e.g., ${nm}(1))`
+          `Duplicate detected in the same level (Type/Parent/Name).\n\nName: ${nm}\nType: ${type}${type === "Subsystem" && lvl ? ` L${lvl}` : ""}\nParent: ${parent ? parent.name : "-"}\n\nOK = Overwrite existing, Cancel = Insert with index (e.g., ${nm}(1))`
         );
         if (overwrite) {
           pushHistory();
@@ -513,7 +529,7 @@ export default function Page() {
     const dupe = findDuplicateNode(nodes, { id: editingId, name: nm, type: newType, level: lvl, parentId: newType === "System" ? null : newParentId || null }, editingId);
     if (dupe) {
       const indexIt = confirm(
-        `Duplicate detected. For edits, only indexing is supported to preserve IDs.\\n\\nOK = Use indexed name (e.g., ${nm}(1))\\nCancel = Abort save`
+        `Duplicate detected. For edits, only indexing is supported to preserve IDs.\n\nOK = Use indexed name (e.g., ${nm}(1))\nCancel = Abort save`
       );
       if (!indexIt) return; // abort
       const siblings = nodes
@@ -547,7 +563,7 @@ export default function Page() {
     const hasChildren = delIds.size > 1;
     if (hasChildren) {
       const ok = window.confirm(
-        `Warning: "${target ? target.name : "This node"}" has ${delIds.size - 1} descendant node(s).\\nDeleting will remove them all.\\n\\nAre you sure?`
+        `Warning: "${target ? target.name : "This node"}" has ${delIds.size - 1} descendant node(s).\nDeleting will remove them all.\n\nAre you sure?`
       );
       if (!ok) { setPendingDeleteId(""); return; }
     }
@@ -570,72 +586,64 @@ export default function Page() {
       }
     } catch {}
     setNodes([]);
-    setCollapsedIds(new Set());
     alert("All data cleared.");
   }
 
   async function exportJSON() {
-  try {
-    const dataStr = JSON.stringify(nodes, null, 2);
-    const suggested = "module1_assets_" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
-
-    // Save Picker
     try {
-      if (typeof window !== "undefined" && window.isSecureContext && typeof window.showSaveFilePicker === "function") {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: suggested,
-          excludeAcceptAllOption: false,
-          types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
-          startIn: "downloads",
-        });
-        const writable = await handle.createWritable();
-        await writable.write(new Blob([dataStr], { type: "application/json" }));
-        await writable.close();
+      const dataStr = JSON.stringify(nodes, null, 2);
+      const suggested = "module1_assets_" + new Date().toISOString().replace(/[:.]/g, "-") + ".json";
+
+      // Save Picker
+      try {
+        if (typeof window !== "undefined" && window.isSecureContext && typeof window.showSaveFilePicker === "function") {
+          const handle = await window.showSaveFilePicker({
+            suggestedName: suggested,
+            excludeAcceptAllOption: false,
+            types: [{ description: "JSON", accept: { "application/json": [".json"] } }],
+            startIn: "downloads",
+          });
+          const writable = await handle.createWritable();
+          await writable.write(new Blob([dataStr], { type: "application/json" }));
+          await writable.close();
+          return;
+        }
+      } catch (e) { if (e && (e.name === "AbortError" || e.name === "NotAllowedError")) return; }
+
+      // Object URL
+      try {
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none"; a.href = url; a.download = suggested; document.body.appendChild(a);
+        a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+        setTimeout(() => { try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch {} }, 1500);
         return;
-      }
-    } catch (e) { if (e && (e.name === "AbortError" || e.name === "NotAllowedError")) return; }
+      } catch (e2) {}
 
-    // Object URL
-    try {
-      const blob = new Blob([dataStr], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.style.display = "none";
-      a.href = url;
-      a.download = suggested;
-      document.body.appendChild(a);
-      a.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-      setTimeout(() => {
-        try { document.body.removeChild(a); URL.revokeObjectURL(url); } catch {}
-      }, 1500);
-      return;
-    } catch (e2) {}
+      // New tab (safe quoting via join)
+      try {
+        const w = window.open("", "_blank");
+        if (w) {
+          w.document.open();
+          const safe = String(dataStr).replace(/[&<>]/g, (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s]));
+          const html = [
+            "<!doctype html>",
+            '<meta charset="utf-8">',
+            "<title>" + suggested + "</title>",
+            '<pre style="white-space:pre-wrap;word-wrap:break-word;padding:16px;">',
+            safe,
+            "</pre>"
+          ].join("");
+          w.document.write(html);
+          w.document.close();
+          return;
+        }
+      } catch (e3) {}
 
-    // New tab (SAFE QUOTING, no escapes)
-    try {
-      const w = window.open("", "_blank");
-      if (w) {
-        w.document.open();
-        const safe = String(dataStr).replace(/[&<>]/g, (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s]));
-        const html = [
-          "<!doctype html>",
-          '<meta charset="utf-8">',
-          "<title>" + suggested + "</title>",
-          '<pre style="white-space:pre-wrap;word-wrap:break-word;padding:16px;">',
-          safe,
-          "</pre>"
-        ].join("");
-        w.document.write(html);
-        w.document.close();
-        return;
-      }
-    } catch (e3) {}
-
-    alert('Export failed due to sandbox limitations. Try on HTTPS domain or enable "Ask where to save each file before downloading".');
-  } catch (err) {
-    alert("Export error: " + (err && err.message ? err.message : String(err)));
+      alert('Export failed due to sandbox limitations. Try on HTTPS domain or enable "Ask where to save each file before downloading".');
+    } catch (err) { alert("Export error: " + (err && err.message ? err.message : String(err))); }
   }
-}
 
   async function exportCSV() {
     try {
@@ -645,8 +653,8 @@ export default function Page() {
         return [n.name, n.type, n.type === "Subsystem" && n.level != null ? n.level : "", p ? p.name : "", n.parentId || "", n.id, new Date(n.createdAt).toISOString()];
       });
       const csv = [header, ...rows]
-        .map((r) => r.map((v) => { const s = String(v == null ? "" : v); return /[\",\\n]/.test(s) ? '\"' + s.replace(/\"/g, '\"\"') + '\"' : s; }).join(","))
-        .join("\\n");
+        .map((r) => r.map((v) => { const s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(","))
+        .join("\n");
       const suggested = "module1_assets_" + new Date().toISOString().replace(/[:.]/g, "-") + ".csv";
 
       // Save Picker
@@ -672,70 +680,25 @@ export default function Page() {
     } catch (err) { alert("Export CSV error: " + (err && err.message ? err.message : String(err))); }
   }
 
-  function importJSON(e) {
-    const f = e.target.files && e.target.files[0]; if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(String(reader.result));
-        if (!Array.isArray(parsed)) throw new Error("Unknown format");
-        const sanitized = parsed
-          .filter((x) => x && x.id && x.name && x.type)
-          .map((x) => ({
-            id: String(x.id),
-            name: String(x.name),
-            type: x.type === "System" || x.type === "Subsystem" || x.type === "Component" ? x.type : "Component",
-            parentId: x.parentId ? String(x.parentId) : null,
-            level: x.type === "Subsystem" && Number.isFinite(Number(x.level)) ? Math.max(1, Number(x.level)) : x.type === "Subsystem" ? 1 : null,
-            createdAt: Number(x.createdAt) || safeNow(),
-          }));
-
-        pushHistory();
-        setNodes((prev) => {
-          const map = new Map(prev.map((i) => [i.id, i]));
-          if (importPolicy === "update") {
-            sanitized.forEach((item) => { const ex = map.get(item.id); if (!ex || Number(item.createdAt) > Number(ex.createdAt)) map.set(item.id, item); });
-            return Array.from(map.values());
-          } else {
-            const toAdd = sanitized.filter((item) => !map.has(item.id));
-            return [...prev, ...toAdd];
-          }
-        });
-        e.target.value = "";
-      } catch (err) { alert("Import failed: " + (err && err.message ? err.message : String(err))); }
-    };
-    reader.readAsText(f);
-  }
-
   // Collapse helpers
   const toggleCollapse = (id) => setCollapsedIds((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const expandAll = () => setCollapsedIds(new Set());
   const collapseAll = () => { const ids = new Set(getAllWithChildrenIds(tree)); setCollapsedIds(ids); };
 
-  // ——————————————————————————————————————————————————————————
-  // Render
   return (
     <>
       <Head>
         <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Module 1 – Asset Registry &amp; Hierarchy (v7.14.0)</title>
+        {/* Tailwind via CDN for simplicity */}
         <script src="https://cdn.tailwindcss.com"></script>
-        <script dangerouslySetInnerHTML={{ __html: `
-          window.tailwind=window.tailwind||{};
-          tailwind.config = {
-            theme: {
-              extend: {
-                fontFamily: { sans: ["Inter","ui-sans-serif","system-ui","Segoe UI","Roboto","Helvetica Neue","Arial","Noto Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"] },
-                borderRadius: { '2xl': '1rem' }
-              }
-            }
-          }
-        ` }} />
       </Head>
       <div className="min-h-screen bg-slate-50 text-slate-900 p-6">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-3">
-            <h1 className="text-2xl font-bold tracking-tight">Module 1 – Asset Registry & Hierarchy (Clean Build v7.13.10)</h1>
-            <p className="text-slate-600 mt-1">Enter asset data, store locally, and display in a table & graphical hierarchy. Subsystem Level starts at 1.</p>
+            <h1 className="text-2xl font-bold tracking-tight">Module 1 – Asset Registry &amp; Hierarchy (v7.14.0)</h1>
+            <p className="text-slate-600 mt-1">Enter asset data, store locally, and display in a table &amp; graphical hierarchy. Subsystem Level starts at 1.</p>
           </div>
 
           {/* Form */}
@@ -763,7 +726,7 @@ export default function Page() {
                 <Select value={parentId} onChange={(e) => setParentId(e.target.value)} disabled={type === "System"}>
                   {type === "System" ? <option value="">— None (Root) —</option> : null}
                   {addParentOptions.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
+                    <option key={p.id} value={p.id}>{p.name} ({p.type}{p.type === "Subsystem" && p.level != null ? ` L${p.level}` : ""})</option>
                   ))}
                 </Select>
               </div>
@@ -803,7 +766,7 @@ export default function Page() {
                 <Button className="bg-white text-slate-700 border-slate-300" onClick={exportCSV}>Export CSV</Button>
                 <label className="cursor-pointer inline-block">
                   <span className="rounded-xl px-3 py-1.5 text-sm border border-slate-300 bg-white">Import JSON</span>
-                  <input type="file" accept="application/json" className="hidden" onChange={importJSON} />
+                  <input type="file" accept="application/json" className="hidden" onChange={(e) => importJSON(e)} />
                 </label>
 
                 {/* Desktop tree quick toggle */}
@@ -843,7 +806,7 @@ export default function Page() {
                     <Select value={editType === "System" ? "" : editParentId} onChange={(e) => setEditParentId(e.target.value)} disabled={editType === "System"}>
                       {editType === "System" ? <option value="">— None (Root) —</option> : null}
                       {editParentOptions.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
+                        <option key={p.id} value={p.id}>{p.name} ({p.type}{p.type === "Subsystem" && p.level != null ? ` L${p.level}` : ""})</option>
                       ))}
                     </Select>
                   </div>
@@ -933,7 +896,7 @@ export default function Page() {
                     <ul className="text-sm list-disc pl-5 space-y-1 text-slate-700">
                       <li><b>System</b>: top/root level (e.g., Trainset, Depot System). Only one System allowed per project.</li>
                       <li><b>Subsystem</b>: parts under System (e.g., Propulsion, Brake). <i>Level</i> starts at 1.</li>
-                      <li><b>Component</b>: smallest maintainable unit (e.g., Traction Inverter, Master Controller).</li>
+                      <li><b>Component</b>: smallest maintainable unit (e.g., Traction Inverter, Master Controller). Parent can be a <i>System</i> or a <i>Subsystem</i>.</li>
                     </ul>
                   </div>
                 </div>
@@ -965,4 +928,55 @@ export default function Page() {
       </div>
     </>
   );
+}
+
+// File input handler (needs to be hoisted)
+function importJSON(e) {
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(String(reader.result));
+      if (!Array.isArray(parsed)) throw new Error("Unknown format");
+      const sanitized = parsed
+        .filter((x) => x && x.id && x.name && x.type)
+        .map((x) => ({
+          id: String(x.id),
+          name: String(x.name),
+          type: x.type === "System" || x.type === "Subsystem" || x.type === "Component" ? x.type : "Component",
+          parentId: x.parentId ? String(x.parentId) : null,
+          level: x.type === "Subsystem" && Number.isFinite(Number(x.level)) ? Math.max(1, Number(x.level)) : x.type === "Subsystem" ? 1 : null,
+          createdAt: Number(x.createdAt) || Date.now(),
+        }));
+
+      // history push is in component scope; here we only set via a custom event
+      const ev = new CustomEvent("module1-import", { detail: sanitized });
+      window.dispatchEvent(ev);
+      e.target.value = "";
+    } catch (err) { alert("Import failed: " + (err && err.message ? err.message : String(err))); }
+  };
+  reader.readAsText(f);
+}
+
+// Wire import to state inside component via event
+if (typeof window !== "undefined") {
+  window.addEventListener("module1-import", (ev) => {
+    const sanitized = (ev && ev.detail) || [];
+    try {
+      const existing = readArray(LS_KEY) || [];
+      const importPolicy = readKey(LS_PREF.importPolicy) || "skip";
+      const map = new Map(existing.map((i) => [i.id, i]));
+      if (importPolicy === "update") {
+        sanitized.forEach((item) => { const ex = map.get(item.id); if (!ex || Number(item.createdAt) > Number(ex.createdAt)) map.set(item.id, item); });
+      } else {
+        sanitized.forEach((item) => { if (!map.has(item.id)) map.set(item.id, item); });
+      }
+      const out = Array.from(map.values());
+      save(out);
+      // force reload to reflect imported data (simple approach without lifting state out of component)
+      location.reload();
+    } catch (e) {
+      console.error("Import wiring error:", e);
+    }
+  });
 }
