@@ -157,12 +157,12 @@ function findDuplicateNode(list, { id, name, type, level, parentId }, ignoreId =
   );
 }
 function nextIndexedName(baseName, siblingNames) {
-  const m = String(baseName).match(/^(.*?)(\((\d+)\))?\s*$/);
+  const m = String(baseName).match(/^(.*?)(\\((\\d+)\\))?\\s*$/);
   const root = (m ? m[1] : String(baseName)).trim();
   const used = new Set();
   siblingNames.forEach((s) => {
-    const esc = root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const mm = String(s).match(new RegExp("^" + esc + "(?:\\((\\d+)\\))?$"));
+    const esc = root.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&");
+    const mm = String(s).match(new RegExp("^" + esc + "(?:\\\\((\\\\d+)\\\\))?$"));
     if (mm) used.add(mm[1] ? Number(mm[1]) : 0);
   });
   let n = 1; while (used.has(n)) n++;
@@ -449,7 +449,7 @@ export default function Page() {
       const dupe = findDuplicateNode(nodes, key);
       if (dupe) {
         const overwrite = confirm(
-          `Duplicate detected in the same level (Type/Parent/Name).\n\nName: ${nm}\nType: ${type}${type === "Subsystem" && lvl ? ` L${lvl}` : ""}\nParent: ${parent ? parent.name : "-"}\n\nOK = Overwrite existing, Cancel = Insert with index (e.g., ${nm}(1))`
+          `Duplicate detected in the same level (Type/Parent/Name).\\n\\nName: ${nm}\\nType: ${type}${type === "Subsystem" && lvl ? ` L${lvl}` : ""}\\nParent: ${parent ? parent.name : "-"}\\n\\nOK = Overwrite existing, Cancel = Insert with index (e.g., ${nm}(1))`
         );
         if (overwrite) {
           pushHistory();
@@ -513,7 +513,7 @@ export default function Page() {
     const dupe = findDuplicateNode(nodes, { id: editingId, name: nm, type: newType, level: lvl, parentId: newType === "System" ? null : newParentId || null }, editingId);
     if (dupe) {
       const indexIt = confirm(
-        `Duplicate detected. For edits, only indexing is supported to preserve IDs.\n\nOK = Use indexed name (e.g., ${nm}(1))\nCancel = Abort save`
+        `Duplicate detected. For edits, only indexing is supported to preserve IDs.\\n\\nOK = Use indexed name (e.g., ${nm}(1))\\nCancel = Abort save`
       );
       if (!indexIt) return; // abort
       const siblings = nodes
@@ -547,7 +547,7 @@ export default function Page() {
     const hasChildren = delIds.size > 1;
     if (hasChildren) {
       const ok = window.confirm(
-        `Warning: "${target ? target.name : "This node"}" has ${delIds.size - 1} descendant node(s).\nDeleting will remove them all.\n\nAre you sure?`
+        `Warning: "${target ? target.name : "This node"}" has ${delIds.size - 1} descendant node(s).\\nDeleting will remove them all.\\n\\nAre you sure?`
       );
       if (!ok) { setPendingDeleteId(""); return; }
     }
@@ -612,7 +612,7 @@ export default function Page() {
         if (w) {
           w.document.open();
           const safe = String(dataStr).replace(/[&<>]/g, (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s]));
-          w.document.write("<!doctype html><meta charset=\"utf-8\"><title>" + suggested + "</title><pre style=\"white-space:pre-wrap;word-wrap:break-word;padding:16px;\">" + safe + "</pre>");
+          w.document.write("<!doctype html><meta charset=\\"utf-8\\"><title>" + suggested + "</title><pre style=\\"white-space:pre-wrap;word-wrap:break-word;padding:16px;\\">" + safe + "</pre>");
           w.document.close();
           return;
         }
@@ -630,8 +630,8 @@ export default function Page() {
         return [n.name, n.type, n.type === "Subsystem" && n.level != null ? n.level : "", p ? p.name : "", n.parentId || "", n.id, new Date(n.createdAt).toISOString()];
       });
       const csv = [header, ...rows]
-        .map((r) => r.map((v) => { const s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(","))
-        .join("\n");
+        .map((r) => r.map((v) => { const s = String(v == null ? "" : v); return /[\",\\n]/.test(s) ? '\"' + s.replace(/\"/g, '\"\"') + '\"' : s; }).join(","))
+        .join("\\n");
       const suggested = "module1_assets_" + new Date().toISOString().replace(/[:.]/g, "-") + ".csv";
 
       // Save Picker
@@ -700,152 +700,254 @@ export default function Page() {
   // ——————————————————————————————————————————————————————————
   // Render
   return (
-      <>
-        <Head>
-          <meta charSet="utf-8" />
-          <script src="https://cdn.tailwindcss.com"></script>
-          <script dangerouslySetInnerHTML={{ __html: `
-            window.tailwind=window.tailwind||{};
-            tailwind.config = {
-              theme: {
-                extend: {
-                  fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"] },
-                  borderRadius: { '2xl': '1rem' }
-                }
+    <>
+      <Head>
+        <meta charSet="utf-8" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.tailwind=window.tailwind||{};
+          tailwind.config = {
+            theme: {
+              extend: {
+                fontFamily: { sans: ["Inter","ui-sans-serif","system-ui","Segoe UI","Roboto","Helvetica Neue","Arial","Noto Sans","Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol"] },
+                borderRadius: { '2xl': '1rem' }
               }
             }
-          ` }} />
-        </Head>
-        <div className="min-h-screen bg-slate-50 text-slate-900 p-6">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-3">
-          <h1 className="text-2xl font-bold tracking-tight">Module 1 – Asset Registry & Hierarchy (Clean Build v7.13.10)</h1>
-          <p className="text-slate-600 mt-1">Enter asset data, store locally, and display in a table & graphical hierarchy. Subsystem Level starts at 1.</p>
-        </div>
-
-        {/* Form */}
-        <Card className="p-5 lg:col-span-1">
-          <SectionTitle>Add Node</SectionTitle>
-          <div className="space-y-3">
-            <div>
-              <Label>Name</Label>
-              <TextInput placeholder="e.g. Trainset Series 12 / Brake Unit / Master Controller" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div>
-              <Label>Type</Label>
-              <Select value={type} onChange={(e) => setType(e.target.value)}>
-                <option value="System" disabled={hasSystem}>System{hasSystem ? " (already exists)" : ""}</option>
-                <option>Subsystem</option>
-                <option>Component</option>
-              </Select>
-            </div>
-            <div>
-              <Label>Subsystem Level {type !== "Subsystem" ? "(active when Type = Subsystem)" : ""}</Label>
-              <TextInput type="number" min={1} step={1} placeholder="e.g. 1, 2, 3" value={subsystemLevel} onChange={(e) => setSubsystemLevel(e.target.value)} disabled={type !== "Subsystem"} />
-            </div>
-            <div>
-              <Label>Parent {type === "System" ? "(auto empty)" : ""}</Label>
-              <Select value={parentId} onChange={(e) => setParentId(e.target.value)} disabled={type === "System"}>
-                {type === "System" ? <option value="">— None (Root) —</option> : null}
-                {addParentOptions.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={addNode}>Add</Button>
-              <Button className="bg-white text-rose-700 border-rose-300" onClick={clearAll}>Clear All</Button>
-            </div>
-          </div>
-        </Card>
-
-        {/* Table */}
-        <Card className={`p-5 lg:col-span-2 ${activeTab === "table" ? "block" : "hidden"} lg:block`}>
-          <div className="mb-3">
-            <SectionTitle>Asset Table</SectionTitle>
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              {/* Filters */}
-              <Select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); if (e.target.value !== "Subsystem") setLevelFilter("All"); }} className="w-36">
-                <option value="All">All Types</option>
-                <option value="System">System</option>
-                <option value="Subsystem">Subsystem</option>
-                <option value="Component">Component</option>
-              </Select>
-              <Select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} disabled={typeFilter !== "Subsystem"} className="w-32">
-                <option value="All">All Levels</option>
-                {levelOptions.map((l) => (
-                  <option key={l} value={String(l)}>
-                    L{l}
-                  </option>
-                ))}
-              </Select>
-
-              <div className="w-64 md:w-80 lg:w-96">
-                <TextInput placeholder="Search name/type/ID…" value={filter} onChange={(e) => setFilter(e.target.value)} />
-              </div>
-
-              <Button className="bg-white text-slate-700 border-slate-300" onClick={exportJSON}>Export JSON</Button>
-              <Button className="bg-white text-slate-700 border-slate-300" onClick={exportCSV}>Export CSV</Button>
-              <label className="cursor-pointer inline-block">
-                <span className="rounded-xl px-3 py-1.5 text-sm border border-slate-300 bg-white">Import JSON</span>
-                <input type="file" accept="application/json" className="hidden" onChange={importJSON} />
-              </label>
-
-              {/* Desktop tree quick toggle */}
-              <Button className="bg-white text-slate-700 border-slate-300 hidden lg:inline-block" onClick={() => setShowTree((s) => !s)}>
-                {showTree ? "Hide Tree" : "Show Tree"}
-              </Button>
-            </div>
+          }
+        ` }} />
+      </Head>
+      <div className="min-h-screen bg-slate-50 text-slate-900 p-6">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-3">
+            <h1 className="text-2xl font-bold tracking-tight">Module 1 – Asset Registry & Hierarchy (Clean Build v7.13.10)</h1>
+            <p className="text-slate-600 mt-1">Enter asset data, store locally, and display in a table & graphical hierarchy. Subsystem Level starts at 1.</p>
           </div>
 
-          {editingId ? (
-            <div className="mb-3 p-3 border rounded-xl bg-slate-50">
-              <div className="flex items-center justify-between mb-2">
-                <div className="font-semibold">Edit Node</div>
-                <div className="text-xs text-slate-500">
-                  ID: <span className="font-mono">{editingId}</span>
+          {/* Form */}
+          <Card className="p-5 lg:col-span-1">
+            <SectionTitle>Add Node</SectionTitle>
+            <div className="space-y-3">
+              <div>
+                <Label>Name</Label>
+                <TextInput placeholder="e.g. Trainset Series 12 / Brake Unit / Master Controller" value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div>
+                <Label>Type</Label>
+                <Select value={type} onChange={(e) => setType(e.target.value)}>
+                  <option value="System" disabled={hasSystem}>System{hasSystem ? " (already exists)" : ""}</option>
+                  <option>Subsystem</option>
+                  <option>Component</option>
+                </Select>
+              </div>
+              <div>
+                <Label>Subsystem Level {type !== "Subsystem" ? "(active when Type = Subsystem)" : ""}</Label>
+                <TextInput type="number" min={1} step={1} placeholder="e.g. 1, 2, 3" value={subsystemLevel} onChange={(e) => setSubsystemLevel(e.target.value)} disabled={type !== "Subsystem"} />
+              </div>
+              <div>
+                <Label>Parent {type === "System" ? "(auto empty)" : ""}</Label>
+                <Select value={parentId} onChange={(e) => setParentId(e.target.value)} disabled={type === "System"}>
+                  {type === "System" ? <option value="">— None (Root) —</option> : null}
+                  {addParentOptions.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={addNode}>Add</Button>
+                <Button className="bg-white text-rose-700 border-rose-300" onClick={clearAll}>Clear All</Button>
+              </div>
+            </div>
+          </Card>
+
+          {/* Table */}
+          <Card className={`p-5 lg:col-span-2 ${activeTab === "table" ? "block" : "hidden"} lg:block`}>
+            <div className="mb-3">
+              <SectionTitle>Asset Table</SectionTitle>
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                {/* Filters */}
+                <Select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); if (e.target.value !== "Subsystem") setLevelFilter("All"); }} className="w-36">
+                  <option value="All">All Types</option>
+                  <option value="System">System</option>
+                  <option value="Subsystem">Subsystem</option>
+                  <option value="Component">Component</option>
+                </Select>
+                <Select value={levelFilter} onChange={(e) => setLevelFilter(e.target.value)} disabled={typeFilter !== "Subsystem"} className="w-32">
+                  <option value="All">All Levels</option>
+                  {levelOptions.map((l) => (
+                    <option key={l} value={String(l)}>
+                      L{l}
+                    </option>
+                  ))}
+                </Select>
+
+                <div className="w-64 md:w-80 lg:w-96">
+                  <TextInput placeholder="Search name/type/ID…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                </div>
+
+                <Button className="bg-white text-slate-700 border-slate-300" onClick={exportJSON}>Export JSON</Button>
+                <Button className="bg-white text-slate-700 border-slate-300" onClick={exportCSV}>Export CSV</Button>
+                <label className="cursor-pointer inline-block">
+                  <span className="rounded-xl px-3 py-1.5 text-sm border border-slate-300 bg-white">Import JSON</span>
+                  <input type="file" accept="application/json" className="hidden" onChange={importJSON} />
+                </label>
+
+                {/* Desktop tree quick toggle */}
+                <Button className="bg-white text-slate-700 border-slate-300 hidden lg:inline-block" onClick={() => setShowTree((s) => !s)}>
+                  {showTree ? "Hide Tree" : "Show Tree"}
+                </Button>
+              </div>
+            </div>
+
+            {editingId ? (
+              <div className="mb-3 p-3 border rounded-xl bg-slate-50">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="font-semibold">Edit Node</div>
+                  <div className="text-xs text-slate-500">
+                    ID: <span className="font-mono">{editingId}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                  <div className="md:col-span-2">
+                    <Label>Name</Label>
+                    <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label>Type</Label>
+                    <Select value={editType} onChange={(e) => setEditType(e.target.value)}>
+                      <option>System</option>
+                      <option>Subsystem</option>
+                      <option>Component</option>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Subsystem Level {editType !== "Subsystem" ? "(active when Type = Subsystem)" : ""}</Label>
+                    <TextInput type="number" min={1} step={1} value={editLevel} onChange={(e) => setEditLevel(e.target.value)} disabled={editType !== "Subsystem"} />
+                  </div>
+                  <div>
+                    <Label>Parent {editType === "System" ? "(auto empty)" : ""}</Label>
+                    <Select value={editType === "System" ? "" : editParentId} onChange={(e) => setEditParentId(e.target.value)} disabled={editType === "System"}>
+                      {editType === "System" ? <option value="">— None (Root) —</option> : null}
+                      {editParentOptions.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <Button onClick={saveEdit}>Save</Button>
+                  <Button className="bg-white text-slate-700 border-slate-300" onClick={cancelEdit}>Cancel</Button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-                <div className="md:col-span-2">
-                  <Label>Name</Label>
-                  <TextInput value={editName} onChange={(e) => setEditName(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Type</Label>
-                  <Select value={editType} onChange={(e) => setEditType(e.target.value)}>
-                    <option>System</option>
-                    <option>Subsystem</option>
-                    <option>Component</option>
-                  </Select>
-                </div>
-                <div>
-                  <Label>Subsystem Level {editType !== "Subsystem" ? "(active when Type = Subsystem)" : ""}</Label>
-                  <TextInput type="number" min={1} step={1} value={editLevel} onChange={(e) => setEditLevel(e.target.value)} disabled={editType !== "Subsystem"} />
-                </div>
-                <div>
-                  <Label>Parent {editType === "System" ? "(auto empty)" : ""}</Label>
-                  <Select value={editType === "System" ? "" : editParentId} onChange={(e) => setEditParentId(e.target.value)} disabled={editType === "System"}>
-                    {editType === "System" ? <option value="">— None (Root) —</option> : null}
-                    {editParentOptions.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
-                    ))}
-                  </Select>
+            ) : null}
+
+            <div className="overflow-auto rounded-xl border">
+              <table className="min-w-full text-sm">
+                <thead className="bg-slate-100">
+                  <tr>
+                    <th className="text-left p-2 font-semibold">Name</th>
+                    <th className="text-left p-2 font-semibold">Type</th>
+                    <th className="text-left p-2 font-semibold">Level</th>
+                    <th className="text-left p-2 font-semibold">Parent</th>
+                    <th className="text-left p-2 font-semibold">ID</th>
+                    <th className="text-left p-2 font-semibold">Created</th>
+                    <th className="text-left p-2 font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((n) => (
+                    <tr key={n.id} className="border-t">
+                      <td className="p-2">{n.name}</td>
+                      <td className="p-2">{n.type}</td>
+                      <td className="p-2">{n.type === "Subsystem" && n.level != null ? n.level : "-"}</td>
+                      <td className="p-2">{(byId.get(n.parentId || "") || {}).name || "-"}</td>
+                      <td className="p-2 font-mono text-xs">{n.id}</td>
+                      <td className="p-2">{new Date(n.createdAt).toLocaleString()}</td>
+                      <td className="p-2">
+                        <div className="flex gap-2">
+                          <Button className="bg-white text-slate-700 border-slate-300" onClick={() => beginEdit(n)}>Edit</Button>
+                          {pendingDeleteId === n.id ? (
+                            <>
+                              <Button className="bg-white text-rose-700 border-rose-300" onClick={confirmDelete}>Confirm Delete?</Button>
+                              <Button className="bg-white text-slate-700 border-slate-300" onClick={cancelDelete}>Cancel</Button>
+                            </>
+                          ) : (
+                            <Button className="bg-white text-rose-700 border-rose-300" onClick={() => askDelete(n)}>Delete</Button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td className="p-4 text-center text-slate-500" colSpan={7}>No data yet</td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile tabs */}
+            <div className="lg:hidden mt-3 flex gap-2">
+              <Button className={`bg-white border-slate-300 text-slate-700 ${activeTab === "table" ? "ring-1 ring-indigo-400" : ""}`} onClick={() => setActiveTab("table")}>Assets</Button>
+              <Button className={`bg-white border-slate-300 text-slate-700 ${activeTab === "tree" ? "ring-1 ring-indigo-400" : ""}`} onClick={() => setActiveTab("tree")}>Hierarchy</Button>
+            </div>
+          </Card>
+
+          {/* Hierarchy */}
+          {showTree && (
+            <Card className={`p-5 lg:col-span-3 ${activeTab === "tree" ? "block" : "hidden"} lg:block`}>
+              <div className="flex items-center justify-between mb-3">
+                <SectionTitle>System Hierarchy (Graphical)</SectionTitle>
+                <div className="flex items-center gap-2">
+                  <Button className="bg-white text-slate-700 border-slate-300" onClick={collapseAll}>Collapse All</Button>
+                  <Button className="bg-white text-slate-700 border-slate-300" onClick={expandAll}>Expand All</Button>
+                  <Button className="bg-white text-slate-700 border-slate-300" onClick={() => setTreeFullscreen(true)}>Full Screen</Button>
+                  <Button className="bg-white text-slate-700 border-slate-300 hidden lg:inline-block" onClick={() => setShowTree(false)}>Hide</Button>
                 </div>
               </div>
-              <div className="mt-2 flex gap-2">
-                <Button onClick={saveEdit}>Save</Button>
-                <Button className="bg-white text-slate-700 border-slate-300" onClick={cancelEdit}>Cancel</Button>
+              {tree.length === 0 ? (
+                <p className="text-slate-500">No nodes yet. Add a System first, then Subsystems/Components.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="font-semibold mb-2">Hierarchy Tree</h3>
+                    <Tree nodes={tree} collapsedIds={collapsedIds} onToggle={toggleCollapse} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold mb-2">Notes</h3>
+                    <ul className="text-sm list-disc pl-5 space-y-1 text-slate-700">
+                      <li><b>System</b>: top/root level (e.g., Trainset, Depot System). Only one System allowed per project.</li>
+                      <li><b>Subsystem</b>: parts under System (e.g., Propulsion, Brake). <i>Level</i> starts at 1.</li>
+                      <li><b>Component</b>: smallest maintainable unit (e.g., Traction Inverter, Master Controller).</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Fullscreen Tree modal */}
+          {treeFullscreen ? (
+            <div className="fixed inset-0 bg-black/50 z-50 flex flex-col">
+              <div className="bg-white shadow-md p-3 flex items-center justify-between">
+                <div className="font-semibold">Hierarchy – Full Screen</div>
+                <div className="flex gap-2">
+                  <Button className="bg-white text-slate-700 border-slate-300" onClick={collapseAll}>Collapse All</Button>
+                  <Button className="bg-white text-slate-700 border-slate-300" onClick={expandAll}>Expand All</Button>
+                  <Button onClick={() => setTreeFullscreen(false)}>Close</Button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-auto bg-white p-5">
+                {tree.length === 0 ? (
+                  <p className="text-slate-500">No nodes yet.</p>
+                ) : (
+                  <Tree nodes={tree} collapsedIds={collapsedIds} onToggle={toggleCollapse} />
+                )}
               </div>
             </div>
           ) : null}
-
-          <div className="overflow-auto rounded-xl border">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-100">
-                <tr>
-                  <th className="text-left p-2 font-semibold">Name</th>
-                  <th className="text-left p-2 font-semibold">Type</th>
-                  <th className="text-left p-2 font-semibold">Level</th>
-                  <th className="text-left p-2 font-semibold">Parent</th>
-
+        </div>
+      </div>
+    </>
+  );
+}
