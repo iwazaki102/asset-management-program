@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
+import Head from "next/head";
 
 // ===== Module 1 – Asset Registry & Hierarchy (Clean Build v7.13.10) =====
 // Hotfix: Restore full React code (previous canvas overwrite left plain text and broke build).
@@ -699,7 +700,23 @@ export default function Page() {
   // ——————————————————————————————————————————————————————————
   // Render
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 p-6">
+      <>
+        <Head>
+          <meta charSet="utf-8" />
+          <script src="https://cdn.tailwindcss.com"></script>
+          <script dangerouslySetInnerHTML={{ __html: `
+            window.tailwind=window.tailwind||{};
+            tailwind.config = {
+              theme: {
+                extend: {
+                  fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"] },
+                  borderRadius: { '2xl': '1rem' }
+                }
+              }
+            }
+          ` }} />
+        </Head>
+        <div className="min-h-screen bg-slate-50 text-slate-900 p-6">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-3">
           <h1 className="text-2xl font-bold tracking-tight">Module 1 – Asset Registry & Hierarchy (Clean Build v7.13.10)</h1>
@@ -830,106 +847,4 @@ export default function Page() {
                   <th className="text-left p-2 font-semibold">Name</th>
                   <th className="text-left p-2 font-semibold">Type</th>
                   <th className="text-left p-2 font-semibold">Level</th>
-                  <th className="text-left p-2 font-semibold">Parent</th>
-                  <th className="text-left p-2 font-semibold">ID</th>
-                  <th className="text-left p-2 font-semibold">Created</th>
-                  <th className="text-left p-2 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((n) => (
-                  <tr key={n.id} className="border-t">
-                    <td className="p-2">{n.name}</td>
-                    <td className="p-2">{n.type}</td>
-                    <td className="p-2">{n.type === "Subsystem" && n.level != null ? n.level : "-"}</td>
-                    <td className="p-2">{(byId.get(n.parentId || "") || {}).name || "-"}</td>
-                    <td className="p-2 font-mono text-xs">{n.id}</td>
-                    <td className="p-2">{new Date(n.createdAt).toLocaleString()}</td>
-                    <td className="p-2">
-                      <div className="flex gap-2">
-                        <Button className="bg-white text-slate-700 border-slate-300" onClick={() => beginEdit(n)}>Edit</Button>
-                        {pendingDeleteId === n.id ? (
-                          <>
-                            <Button className="bg-white text-rose-700 border-rose-300" onClick={confirmDelete}>Confirm Delete?</Button>
-                            <Button className="bg-white text-slate-700 border-slate-300" onClick={cancelDelete}>Cancel</Button>
-                          </>
-                        ) : (
-                          <Button className="bg-white text-rose-700 border-rose-300" onClick={() => askDelete(n)}>Delete</Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td className="p-4 text-center text-slate-500" colSpan={7}>No data yet</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile tabs */}
-          <div className="lg:hidden mt-3 flex gap-2">
-            <Button className={`bg-white border-slate-300 text-slate-700 ${activeTab === "table" ? "ring-1 ring-indigo-400" : ""}`} onClick={() => setActiveTab("table")}>Assets</Button>
-            <Button className={`bg-white border-slate-300 text-slate-700 ${activeTab === "tree" ? "ring-1 ring-indigo-400" : ""}`} onClick={() => setActiveTab("tree")}>Hierarchy</Button>
-          </div>
-        </Card>
-
-        {/* Hierarchy */}
-        {showTree && (
-          <Card className={`p-5 lg:col-span-3 ${activeTab === "tree" ? "block" : "hidden"} lg:block`}>
-            <div className="flex items-center justify-between mb-3">
-              <SectionTitle>System Hierarchy (Graphical)</SectionTitle>
-              <div className="flex items-center gap-2">
-                <Button className="bg-white text-slate-700 border-slate-300" onClick={collapseAll}>Collapse All</Button>
-                <Button className="bg-white text-slate-700 border-slate-300" onClick={expandAll}>Expand All</Button>
-                <Button className="bg-white text-slate-700 border-slate-300" onClick={() => setTreeFullscreen(true)}>Full Screen</Button>
-                <Button className="bg-white text-slate-700 border-slate-300 hidden lg:inline-block" onClick={() => setShowTree(false)}>Hide</Button>
-              </div>
-            </div>
-            {tree.length === 0 ? (
-              <p className="text-slate-500">No nodes yet. Add a System first, then Subsystems/Components.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold mb-2">Hierarchy Tree</h3>
-                  <Tree nodes={tree} collapsedIds={collapsedIds} onToggle={toggleCollapse} />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-2">Notes</h3>
-                  <ul className="text-sm list-disc pl-5 space-y-1 text-slate-700">
-                    <li><b>System</b>: top/root level (e.g., Trainset, Depot System). Only one System allowed per project.</li>
-                    <li><b>Subsystem</b>: parts under System (e.g., Propulsion, Brake). <i>Level</i> starts at 1.</li>
-                    <li><b>Component</b>: smallest maintainable unit (e.g., Traction Inverter, Master Controller).</li>
-                  </ul>
-                </div>
-              </div>
-            )}
-          </Card>
-        )}
-
-        {/* Fullscreen Tree modal */}
-        {treeFullscreen ? (
-          <div className="fixed inset-0 bg-black/50 z-50 flex flex-col">
-            <div className="bg-white shadow-md p-3 flex items-center justify-between">
-              <div className="font-semibold">Hierarchy – Full Screen</div>
-              <div className="flex gap-2">
-                <Button className="bg-white text-slate-700 border-slate-300" onClick={collapseAll}>Collapse All</Button>
-                <Button className="bg-white text-slate-700 border-slate-300" onClick={expandAll}>Expand All</Button>
-                <Button onClick={() => setTreeFullscreen(false)}>Close</Button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-auto bg-white p-5">
-              {tree.length === 0 ? (
-                <p className="text-slate-500">No nodes yet.</p>
-              ) : (
-                <Tree nodes={tree} collapsedIds={collapsedIds} onToggle={toggleCollapse} />
-              )}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
+                  <th className="text-left p-2 font-s
