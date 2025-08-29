@@ -2,151 +2,79 @@ import React, { useEffect, useMemo, useState } from "react";
 
 /** @typedef {{id:string,name:string,type:"System"|"Subsystem"|"Component",level:number,parentId:string|null,code?:string,notes?:string,createdAt:string}} Node */
 
-const STORAGE_KEY = "asrs.v17_14_3.ui_modern";
-const BUILD_VERSION = "v7.14.3 – Modern UI";
+// =====================================
+// HARD RESET: No Tailwind, self-styled UI
+// =====================================
+const STORAGE_KEY = "asrs.v17_14_3.naked_ui";
+const BUILD_VERSION = "v7.14.3 — Clean Inline UI";
 
-// Utility
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-const cn = (...c)=> c.filter(Boolean).join(" ");
 
 const SAMPLE /** @type {Node[]} */ = [];
 
 function byName(a,b){return a.name.localeCompare(b.name);} 
 function byLevelThenName(a,b){return (a.level-b.level)||byName(a,b);} 
 
-function wouldCreateCycle(candidate,nodes){
-  let pid = candidate.parentId; 
-  while(pid){
-    if(pid===candidate.id) return true; 
-    const p = nodes.find(n=>n.id===pid); 
-    if(!p) break; 
-    pid=p.parentId; 
-  }
-  return false;
+function wouldCreateCycle(candidate /** @type {Node} */, nodes /** @type {Node[]} */){
+  let pid = candidate.parentId; while(pid){ if(pid===candidate.id) return true; const p = nodes.find(n=>n.id===pid); if(!p) break; pid=p.parentId; } return false;
 }
-
 function nameExistsAtSameParent(nodes,name,parentId,type,excludeId){
   const key = String(name).trim().toLowerCase();
   return nodes.some(n=> n.id!==excludeId && (n.parentId??null)===(parentId??null) && n.type===type && String(n.name).trim().toLowerCase()===key);
 }
-
-function validateCandidate(c,nodes){
+function validateCandidate(c /** @type {Node} */, nodes /** @type {Node[]} */){
   if(!String(c.name).trim()) return "Name is required";
   const lvl = Number(c.level);
   if(!Number.isInteger(lvl)||lvl<1) return "Level must be an integer ≥ 1";
   const parent = c.parentId ? nodes.find(n=>n.id===c.parentId) : null;
-
   if(c.type==="System"){ if(lvl!==1) return "System must be at Level 1"; if(c.parentId!==null) return "System must not have a parent"; }
   else if(c.type==="Subsystem"){ if(lvl!==2) return "Subsystem must be at Level 2"; if(!parent) return "Choose a parent (System)"; if(parent.type!=="System") return "Parent of Subsystem must be a System"; }
   else if(c.type==="Component"){ if(!parent) return "Choose a parent (System or Subsystem)"; if(!(parent.type==="System"||parent.type==="Subsystem")) return "Parent of Component must be a System or a Subsystem"; if(lvl<3) return "Component should be at Level 3 or deeper"; }
   else return "Invalid node type";
-
   if(wouldCreateCycle(c,nodes)) return "Invalid parent: would create a cycle";
   if(nameExistsAtSameParent(nodes,c.name,c.parentId,c.type,c.id)) return "Duplicate name under the same parent";
   return null;
 }
 
-// Small UI components
-function Card({className, children}){
-  return <div className={cn("rounded-2xl border border-gray-200 bg-white shadow-md", className)}>{children}</div>;
-}
-function CardHeader({title, children}){
-  return (
-    <div className="flex items-center justify-between border-b px-4 py-3">
-      <h2 className="font-semibold text-gray-800">{title}</h2>
-      {children}
-    </div>
-  );
-}
-function Input(props){ return <input {...props} className={cn("w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-400", props.className)} />; }
-function Select(props){ return <select {...props} className={cn("w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-400", props.className)} />; }
-function Textarea(props){ return <textarea {...props} className={cn("w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-400", props.className)} />; }
-function Button({variant="default", className, ...rest}){
-  const base = "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition";
-  const variants = {
-    default: "bg-violet-600 text-white hover:bg-violet-700",
-    subtle: "bg-gray-100 text-gray-800 hover:bg-gray-200",
-    danger: "bg-red-600 text-white hover:bg-red-700",
-    outline: "border border-gray-300 text-gray-800 hover:bg-gray-50"
-  };
-  return <button {...rest} className={cn(base, variants[variant], className)} />;
-}
-function Badge({children}){ return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-700 border">{children}</span>; }
+// ============ Inline styles (modern, light) ============
+const S = {
+  page: { minHeight:'100vh', background:'#f7f9fc', fontFamily:'Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial', color:'#111827' },
+  container: { maxWidth:1000, margin:'0 auto', padding:24 },
+  h1: { fontSize:24, fontWeight:700, margin:0 },
+  muted: { fontSize:14, color:'#6b7280', marginTop:6 },
+  grid2: { display:'grid', gridTemplateColumns:'1fr', gap:24 },
+  card: { background:'#fff', border:'1px solid #e5e7eb', borderRadius:16, boxShadow:'0 1px 2px rgba(0,0,0,0.06)' },
+  header: { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:'1px solid #e5e7eb' },
+  cardTitle: { fontSize:16, fontWeight:600, margin:0 },
+  body: { padding:16 },
+  label: { fontSize:12, fontWeight:600, color:'#4b5563' },
+  input: { width:'100%', border:'1px solid #d1d5db', borderRadius:8, padding:'8px 12px', fontSize:14, color:'#111827', background:'#fff' },
+  row: { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 },
+  btn: { borderRadius:8, padding:'8px 14px', fontSize:14, fontWeight:600, border:'1px solid #d1d5db', background:'#fff', color:'#1f2937', cursor:'pointer' },
+  btnPri: { background:'#6d28d9', borderColor:'#6d28d9', color:'#fff' },
+  btnSubtle: { background:'#f3f4f6' },
+  btnDanger: { background:'#dc2626', borderColor:'#dc2626', color:'#fff' },
+  toolbar: { display:'flex', flexWrap:'wrap', gap:8, alignItems:'center', marginBottom:12 },
+  tableWrap: { border:'1px solid #e5e7eb', borderRadius:12, overflow:'hidden' },
+  th: { background:'#f9fafb', textTransform:'uppercase', fontSize:12, color:'#6b7280', textAlign:'left', padding:8 },
+  td: { padding:8, fontSize:14, borderTop:'1px solid #eef2f7' },
+  badge: { display:'inline-flex', alignItems:'center', border:'1px solid #d1d5db', borderRadius:999, background:'#f9fafb', padding:'2px 8px', fontSize:12, color:'#374151' },
+};
 
 export default function App(){
-  // — Inject Tailwind CDN + Inter font when Tailwind build pipeline isn't present —
-  // This ensures modern styling even if the project hasn't been set up with PostCSS.
-  React.useEffect(()=>{
-    // Inject Inter font
-    if(!document.querySelector('link[data-inter-font]')){
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
-      link.setAttribute('data-inter-font','1');
-      document.head.appendChild(link);
-    }
-    // If Tailwind is already present (build pipeline), skip
-    if(window.tailwind?.version || document.querySelector('script[data-tailwind-cdn]')) return;
-    // Add a minimal config first
-    const cfg = document.createElement('script');
-    cfg.innerHTML = "window.tailwind=window.tailwind||{};window.tailwind.config={theme:{extend:{}}}";
-    const cdn = document.createElement('script');
-    cdn.src = 'https://cdn.tailwindcss.com';
-    cdn.defer = true;
-    cdn.setAttribute('data-tailwind-cdn','1');
-    document.head.appendChild(cfg);
-    document.head.appendChild(cdn);
-  },[]);
-
-  const [nodes,setNodes] = useState(()=>{ try{const raw=localStorage.getItem(STORAGE_KEY); const parsed=raw?JSON.parse(raw):null; if(Array.isArray(parsed)) return parsed; if(Array.isArray(parsed?.nodes)) return parsed.nodes;}catch{} return SAMPLE; });
+  const [nodes,setNodes] = useState/** @type {React.SetStateAction<Node[]>} */(()=>{
+    try{const raw=localStorage.getItem(STORAGE_KEY); const parsed=raw?JSON.parse(raw):null; if(Array.isArray(parsed)) return parsed; if(Array.isArray(parsed?.nodes)) return parsed.nodes;}catch{} return SAMPLE;
+  });
   useEffect(()=>{ localStorage.setItem(STORAGE_KEY, JSON.stringify(nodes)); },[nodes]);
 
-  const [form,setForm] = useState({ id:"", name:"", type:"System", level:1, parentId:null, code:"", notes:"" });
-  const [editingId,setEditingId] = useState(null);
+  const [form,setForm] = useState({ id:"", name:"", type/** @type {"System"|"Subsystem"|"Component"} */: "System", level:1, parentId/** @type {string|null} */: null, code:"", notes:"" });
+  const [editingId,setEditingId] = useState/** @type {string|null} */(null);
   const [userTouchedParent,setUserTouchedParent] = useState(false);
+
   const [typeFilter,setTypeFilter] = useState("All Types");
   const [levelFilter,setLevelFilter] = useState("All Levels");
   const [q,setQ] = useState("");
   const [showTree,setShowTree] = useState(true);
-
-  // Fallback modern CSS if Tailwind isn't present
-  useEffect(()=>{
-    if (document.querySelector('style[data-fallback-ui]')) return;
-    // If tailwind is present, skip fallback
-    if (window.tailwind?.version) return;
-    const s = document.createElement('style');
-    s.setAttribute('data-fallback-ui','1');
-    s.innerHTML = `
-      :root{--bg:#f7f9fc;--card:#ffffff;--txt:#111827;--muted:#6b7280;--br:#e5e7eb;--primary:#6d28d9;}
-      html,body{height:100%}
-      body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji';background:var(--bg);color:var(--txt)}
-      h1,h2,h3{margin:0 0 8px}
-      .rounded-2xl{border-radius:16px}
-      .border{border:1px solid var(--br)}
-      .shadow-sm{box-shadow:0 1px 2px rgba(0,0,0,.06)}
-      .p-4{padding:16px}
-      .mb-6{margin-bottom:24px}
-      .text-sm{font-size:14px}
-      .text-xs{font-size:12px}
-      .font-semibold{font-weight:600}
-      .text-gray-500{color:var(--muted)}
-      input,select,textarea{width:100%;padding:8px 12px;font-size:14px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:var(--txt)}
-      button{border-radius:8px;padding:8px 14px;font-size:14px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#1f2937;cursor:pointer}
-      button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
-      button.subtle{background:#f3f4f6}
-      button.danger{background:#dc2626;border-color:#dc2626;color:#fff}
-      table{border-collapse:collapse;width:100%}
-      thead{background:#f9fafb;font-size:12px;text-transform:uppercase;color:#6b7280}
-      th,td{padding:8px;border-bottom:1px solid #eef2f7}
-      tr:hover td{background:#fafafa}
-      .card{background:var(--card);border:1px solid var(--br);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
-      .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-      .grid2{display:grid;grid-template-columns:1fr;gap:24px}
-      @media (min-width:768px){.grid2{grid-template-columns:1fr 1fr}}
-      .container{max-width:960px;margin:0 auto;padding:24px}
-    `;
-    document.head.appendChild(s);
-  },[]);
 
   const parentOptions = useMemo(()=>{
     if(form.type==="System") return [];
@@ -156,6 +84,12 @@ export default function App(){
   },[form.type,nodes]);
 
   useEffect(()=>{ setUserTouchedParent(false); },[form.type,form.level]);
+  useEffect(()=>{
+    if(userTouchedParent) return;
+    if(form.type==="System"){ if(form.level!==1||form.parentId!==null) setForm(s=>({...s, level:1, parentId:null})); return; }
+    if(form.type==="Subsystem"){ if(form.level!==2) setForm(s=>({...s, level:2})); if(form.parentId && !parentOptions.some(p=>p.id===form.parentId)) setForm(s=>({...s,parentId:null})); if(!form.parentId && parentOptions.length===1) setForm(s=>({...s,parentId:parentOptions[0].id})); return; }
+    if(form.type==="Component"){ if(form.level<3) setForm(s=>({...s, level:3})); if(form.parentId && !parentOptions.some(p=>p.id===form.parentId)) setForm(s=>({...s,parentId:null})); if(!form.parentId && parentOptions.length===1) setForm(s=>({...s,parentId:parentOptions[0].id})); return; }
+  },[form.type,form.level,form.parentId,parentOptions,userTouchedParent]);
 
   const roots = useMemo(()=>{
     const map = new Map(nodes.map(n=>[n.id,{...n,children:[]} ]));
@@ -177,109 +111,294 @@ export default function App(){
     }).sort(byLevelThenName);
   },[nodes,typeFilter,levelFilter,q]);
 
-  function LevelBadge({level}){ return <Badge>L{level}</Badge>; }
+  function preSubmitCheck(c /** @type {Node} */){
+    if(c.type==="System") return null;
+    if(c.type==="Subsystem"){
+      const candidates = nodes.filter(n=>n.type==="System");
+      if(c.parentId) return null; if(candidates.length===1){ c.parentId=candidates[0].id; return null; }
+      if(candidates.length===0) return "Please add a System first."; return "Multiple parents found. Please choose a Parent (System).";
+    }
+    if(c.type==="Component"){
+      const candidates = nodes.filter(n=>n.type==="System"||n.type==="Subsystem");
+      if(c.parentId) return null; if(candidates.length===1){ c.parentId=candidates[0].id; return null; }
+      if(candidates.length===0) return "Please add a System or a Subsystem first."; return "Multiple parents found. Please choose a Parent (System or Subsystem).";
+    }
+    return null;
+  }
 
+  function clearForm(){ setEditingId(null); setForm({ id:"", name:"", type:"System", level:1, parentId:null, code:"", notes:"" }); setUserTouchedParent(false); }
+
+  function addNode(){
+    const candidate /** @type {Node} */ = {
+      id: `N-${uid()}`,
+      name: String(form.name||"").trim(),
+      type: form.type,
+      level: Number(form.level)|| (form.type==="System"?1: form.type==="Subsystem"?2:3),
+      parentId: form.parentId ?? null,
+      code: form.code?.trim()||"",
+      notes: form.notes?.trim()||"",
+      createdAt: new Date().toISOString()
+    };
+    const pre = preSubmitCheck(candidate); if(pre){ alert(pre); return; }
+    const err = validateCandidate(candidate,nodes); if(err){ alert(err); return; }
+    setNodes(prev=>[...prev,candidate]); clearForm();
+  }
+
+  function saveEdit(){
+    if(!editingId) return;
+    const candidate /** @type {Node} */ = {
+      id: editingId,
+      name: String(form.name||"").trim(),
+      type: form.type,
+      level: Number(form.level)|| (form.type==="System"?1: form.type==="Subsystem"?2:3),
+      parentId: form.parentId ?? null,
+      code: form.code?.trim()||"",
+      notes: form.notes?.trim()||"",
+      createdAt: nodes.find(n=>n.id===editingId)?.createdAt || new Date().toISOString()
+    };
+    const pre = preSubmitCheck(candidate); if(pre){ alert(pre); return; }
+    const err = validateCandidate(candidate,nodes); if(err){ alert(err); return; }
+    setNodes(prev=> prev.map(n=> n.id===editingId? {...n,...candidate}: n)); clearForm();
+  }
+
+  function removeNode(id){
+    const toDelete = new Set([id]); let changed = true;
+    while(changed){ changed=false; for(const n of nodes){ if(n.parentId && toDelete.has(n.parentId) && !toDelete.has(n.id)){ toDelete.add(n.id); changed=true; } } }
+    setNodes(prev=> prev.filter(n=> !toDelete.has(n.id))); if(editingId===id) clearForm();
+  }
+
+  function csvFromNodes(list /** @type {Node[]} */){
+    const header = ["id","name","type","level","parentId","code","notes","createdAt"]; 
+    const rows = list.map(n=> header.map(h=> (n[h]??"").toString().replaceAll('"','""')));
+    return [header.join(","), ...rows.map(r=> r.map(v=>`"${v}"`).join(","))].join("\n");
+  }
+  function exportJSON(){
+    const blob = new Blob([JSON.stringify({version:BUILD_VERSION, nodes}, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`module1-assets-${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
+  }
+  function exportCSV(){
+    const csv = csvFromNodes(nodes);
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`module1-assets-${Date.now()}.csv`; a.click(); URL.revokeObjectURL(url);
+  }
+  function importJSON(e){
+    const file = e.target.files?.[0]; if(!file) return; const reader=new FileReader();
+    reader.onload=()=>{ try{ const data=JSON.parse(String(reader.result||"")); const list = Array.isArray(data)?data: (Array.isArray(data?.nodes)?data.nodes: null); if(!Array.isArray(list)) throw new Error("Invalid file");
+      const clean = list.map(x=>({ id:String(x.id||`N-${uid()}`), name:String(x.name||"Unnamed"), type: x.type==="System"||x.type==="Subsystem"||x.type==="Component"? x.type: "Component", level:Number(x.level)||3, parentId: x.parentId??null, code:String(x.code||""), notes:String(x.notes||""), createdAt: x.createdAt || new Date().toISOString() }));
+      setNodes(clean);
+    }catch{ alert("Invalid JSON file"); }
+    (e.target).value=""; };
+    reader.readAsText(file);
+  }
+
+  // ===== Render =====
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 font-sans antialiased">
-      <div className="max-w-6xl mx-auto px-4 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-800">Module 1 – Asset Registry & Hierarchy <span className="text-gray-400 text-lg">({BUILD_VERSION})</span></h1>
-          <p className="text-sm text-gray-600 mt-1">Enter asset data, store locally, and display in a table & graphical hierarchy. Subsystem Level starts at 1.</p>
+    <div style={S.page}>
+      <div style={S.container}>
+        <div style={{marginBottom:24}}>
+          <h1 style={S.h1}>Module 1 – Asset Registry & Hierarchy <span style={{fontWeight:400,color:'#6b7280'}}>({BUILD_VERSION})</span></h1>
+          <p style={S.muted}>Enter asset data, store locally, and display in a table & graphical hierarchy. Subsystem Level starts at 1.</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader title="Add Node" />
-            <div className="p-4 space-y-3">
-              <div>
-                <label className="text-xs text-gray-600">Name</label>
-                <Input placeholder="e.g. Trainset Series 12 / Brake Unit / Master Controller" value={form.name} onChange={e=> setForm(s=>({...s, name:e.target.value}))} />
+        {/* Two columns */}
+        <div style={S.grid2}>
+          {/* LEFT: Add Node */}
+          <div style={S.card}>
+            <div style={S.header}><h2 style={S.cardTitle}>Add Node</h2></div>
+            <div style={S.body}>
+              <div style={{marginBottom:10}}>
+                <div style={S.label}>Name</div>
+                <input style={S.input} placeholder="e.g. Trainset Series 12 / Brake Unit / Master Controller" value={form.name} onChange={e=> setForm(s=>({...s, name:e.target.value}))} />
               </div>
-              <div>
-                <label className="text-xs text-gray-600">Type</label>
-                <Select value={form.type} onChange={e=> setForm(s=>({...s, type:e.target.value}))}>
+
+              <div style={{marginBottom:10}}>
+                <div style={S.label}>Type</div>
+                <select style={S.input} value={form.type} onChange={e=>{
+                  const t = /** @type {"System"|"Subsystem"|"Component"} */(e.target.value);
+                  setForm(s=>{ if(t==="System") return {...s, type:t, level:1, parentId:null}; if(t==="Subsystem") return {...s, type:t, level:2, parentId:null}; return {...s, type:t, level: Math.max(3, Number(s.level)||3)}; });
+                  setUserTouchedParent(false);
+                }}>
                   <option value="System">System</option>
                   <option value="Subsystem">Subsystem</option>
                   <option value="Component">Component</option>
-                </Select>
+                </select>
               </div>
-              <div>
-                <label className="text-xs text-gray-600">Subsystem Level</label>
-                <Input type="number" min={1} disabled={form.type!=="Subsystem"} value={form.type==="Subsystem"? form.level: ""} onChange={e=> setForm(s=>({...s, level:Number(e.target.value||2)}))} />
+
+              <div style={{marginBottom:10}}>
+                <div style={S.label}>Subsystem Level (active when Type = Subsystem)</div>
+                <input style={S.input} placeholder="e.g. 1, 2, 3" type="number" min={1} step={1} disabled={form.type!=="Subsystem"} value={form.type==="Subsystem"? form.level: ""} onChange={e=> setForm(s=>({...s, level: Number(e.target.value||2)}))} />
               </div>
-              <div>
-                <label className="text-xs text-gray-600">Parent</label>
+
+              <div style={{marginBottom:10}}>
+                <div style={S.label}>Parent (auto empty)</div>
                 {form.type==="System" ? (
-                  <Input value="— None (Root) —" disabled />
+                  <input style={{...S.input, background:'#f9fafb'}} value="— None (Root) —" disabled />
                 ) : (
-                  <Select value={form.parentId ?? ""} onChange={e=> setForm(s=>({...s,parentId:e.target.value||null}))}>
+                  <select style={S.input} value={form.parentId ?? ""} onChange={e=>{ setUserTouchedParent(true); setForm(s=>({...s, parentId: e.target.value===""? null : String(e.target.value)})); }}>
+                    {parentOptions.length>1 ? <option value="">— None (Root) —</option> : null}
                     {parentOptions.map(p=> (<option key={p.id} value={p.id}>{p.name} [{p.type}]</option>))}
-                  </Select>
+                    {parentOptions.length===0 ? <option value="">(no eligible parent)</option> : null}
+                  </select>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div style={S.row}>
                 <div>
-                  <label className="text-xs text-gray-600">Code</label>
-                  <Input value={form.code} onChange={e=> setForm(s=>({...s, code:e.target.value}))} />
+                  <div style={S.label}>Code</div>
+                  <input style={S.input} value={form.code} onChange={e=> setForm(s=>({...s, code:e.target.value}))} />
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600">Notes</label>
-                  <Textarea rows={2} value={form.notes} onChange={e=> setForm(s=>({...s, notes:e.target.value}))} />
+                  <div style={S.label}>Notes</div>
+                  <textarea rows={2} style={S.input} value={form.notes} onChange={e=> setForm(s=>({...s, notes:e.target.value}))} />
                 </div>
               </div>
-              <div className="flex gap-2">
-                <Button onClick={()=>{}}>Add</Button>
-                <Button variant="danger" onClick={()=> setNodes([])}>Clear All</Button>
+
+              <div style={{display:'flex',gap:8, marginTop:12}}>
+                {editingId ? (
+                  <>
+                    <button style={{...S.btn, ...S.btnPri}} onClick={saveEdit}>Save</button>
+                    <button style={{...S.btn, ...S.btnSubtle}} onClick={clearForm}>Cancel</button>
+                  </>
+                ) : (
+                  <>
+                    <button style={{...S.btn, ...S.btnPri}} onClick={addNode}>Add</button>
+                    <button style={{...S.btn, ...S.btnDanger}} onClick={()=> setNodes([])}>Clear All</button>
+                  </>
+                )}
               </div>
             </div>
-          </Card>
+          </div>
 
-          <Card>
-            <CardHeader title="Asset Table" />
-            <div className="p-4">
-              <div className="flex flex-wrap gap-2 mb-3">
-                <Select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
+          {/* RIGHT: Asset Table */}
+          <div style={S.card}>
+            <div style={S.header}><h2 style={S.cardTitle}>Asset Table</h2></div>
+            <div style={S.body}>
+              <div style={S.toolbar}>
+                <select style={S.input} value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}>
                   <option>All Types</option>
                   <option>System</option>
                   <option>Subsystem</option>
                   <option>Component</option>
-                </Select>
-                <Select value={levelFilter} onChange={e=>setLevelFilter(e.target.value)}>
+                </select>
+                <select style={S.input} value={levelFilter} onChange={e=>setLevelFilter(e.target.value)}>
                   <option>All Levels</option>
                   <option>1</option>
                   <option>2</option>
                   <option>3</option>
-                </Select>
-                <Input placeholder="Search..." value={q} onChange={e=>setQ(e.target.value)} />
-                <Button variant="outline">Export JSON</Button>
-                <Button variant="outline">Export CSV</Button>
+                  <option>4</option>
+                  <option>5</option>
+                </select>
+                <input style={{...S.input, minWidth:160, flex:1}} placeholder="Search name/type/ID..." value={q} onChange={e=>setQ(e.target.value)} />
+                <button style={S.btn} onClick={()=>setShowTree(s=>!s)}>{showTree?"Hide Tree":"Show Tree"}</button>
+                <button style={S.btn} onClick={exportJSON}>Export JSON</button>
+                <button style={S.btn} onClick={exportCSV}>Export CSV</button>
+                <label style={{display:'inline-flex',alignItems:'center',gap:8}}>
+                  <input type="file" accept="application/json" onChange={importJSON} />
+                  <button style={S.btn}>Import JSON</button>
+                </label>
               </div>
-              <div className="overflow-hidden rounded-xl border">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50">
-                    <tr className="text-left text-xs text-gray-600 uppercase">
-                      <th className="p-2">Name</th>
-                      <th className="p-2">Type</th>
-                      <th className="p-2">Level</th>
-                      <th className="p-2">Parent</th>
-                      <th className="p-2">ID</th>
+
+              <div style={S.tableWrap}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={S.th}>Name</th>
+                      <th style={{...S.th, width:110}}>Type</th>
+                      <th style={{...S.th, width:80}}>Level</th>
+                      <th style={{...S.th, width:220}}>Parent</th>
+                      <th style={{...S.th, width:220}}>ID</th>
+                      <th style={{...S.th, width:160}}>Created</th>
+                      <th style={{...S.th, width:150}}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {!filtered.length ? <tr><td className="p-3 text-gray-500" colSpan={5}>No data yet</td></tr> : null}
+                    {filtered.map(n=> (
+                      <tr key={n.id}>
+                        <td style={S.td}>{n.name}</td>
+                        <td style={S.td}>{n.type}</td>
+                        <td style={S.td}><span style={S.badge}>L{n.level}</span></td>
+                        <td style={S.td}>{n.parentId??"(root)"}</td>
+                        <td style={S.td}><span style={{fontFamily:'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas', fontSize:13}}>{n.id}</span></td>
+                        <td style={S.td}>{new Date(n.createdAt).toLocaleString()}</td>
+                        <td style={S.td}>
+                          <div style={{display:'flex',gap:8}}>
+                            <button style={{...S.btn, ...S.btnPri}} onClick={()=>{ setEditingId(n.id); setForm({ id:n.id, name:n.name, type:n.type, level:n.level, parentId:n.parentId, code:n.code??"", notes:n.notes??"" }); setUserTouchedParent(false); }}>Edit</button>
+                            <button style={{...S.btn, ...S.btnDanger}} onClick={()=>removeNode(n.id)}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {!filtered.length ? (
+                      <tr><td style={{...S.td, color:'#6b7280'}} colSpan={7}>No data yet</td></tr>
+                    ) : null}
                   </tbody>
                 </table>
               </div>
             </div>
-          </Card>
+          </div>
         </div>
 
-        <Card>
-          <CardHeader title="System Hierarchy (Graphical)" />
-          <div className="p-4">
-            {nodes.length ? "render tree" : <p className="text-gray-500 text-sm">No nodes yet. Add a System first, then Subsystems/Components.</p>}
+        {/* Graphical Tree */}
+        <div style={{...S.card, marginTop:24}}>
+          <div style={S.header}>
+            <h2 style={S.cardTitle}>System Hierarchy (Graphical)</h2>
+            <div style={{display:'flex',gap:8}}>
+              <button style={S.btn}>Collapse All</button>
+              <button style={S.btn}>Expand All</button>
+              <button style={S.btn}>Full Screen</button>
+              <button style={S.btn} onClick={()=>setShowTree(s=>!s)}>{showTree?"Hide":"Show"}</button>
+            </div>
           </div>
-        </Card>
+          {showTree ? (
+            <div style={S.body}>
+              {nodes.length ? (
+                <ul style={{margin:0,paddingLeft:18, listStyle:'none'}}>
+                  {roots.map(r=> (
+                    <li key={r.id} style={{marginBottom:6}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <span style={S.badge}>L{r.level}</span>
+                        <span style={{fontWeight:600}}>{r.name}</span>
+                        <span style={{fontSize:12,color:'#6b7280'}}>[{r.type}]</span>
+                      </div>
+                      {r.children?.length ? (
+                        <div style={{borderLeft:'1px solid #e5e7eb', marginTop:6, paddingLeft:12}}>
+                          <ul style={{margin:0, paddingLeft:0, listStyle:'none'}}>
+                            {r.children.map(c1 => (
+                              <li key={c1.id} style={{marginBottom:6}}>
+                                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                  <span style={S.badge}>L{c1.level}</span>
+                                  <span>{c1.name}</span>
+                                  <span style={{fontSize:12,color:'#6b7280'}}>[{c1.type}]</span>
+                                </div>
+                                {c1.children?.length ? (
+                                  <div style={{borderLeft:'1px solid #e5e7eb', marginTop:6, paddingLeft:12}}>
+                                    <ul style={{margin:0, paddingLeft:0, listStyle:'none'}}>
+                                      {c1.children.map(c2 => (
+                                        <li key={c2.id} style={{marginBottom:6}}>
+                                          <div style={{display:'flex',alignItems:'center',gap:8}}>
+                                            <span style={S.badge}>L{c2.level}</span>
+                                            <span>{c2.name}</span>
+                                            <span style={{fontSize:12,color:'#6b7280'}}>[{c2.type}]</span>
+                                          </div>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p style={{...S.muted, marginTop:6}}>No nodes yet. Add a System first, then Subsystems/Components.</p>
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
