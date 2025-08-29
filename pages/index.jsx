@@ -109,6 +109,45 @@ export default function App(){
   const [q,setQ] = useState("");
   const [showTree,setShowTree] = useState(true);
 
+  // Fallback modern CSS if Tailwind isn't present
+  useEffect(()=>{
+    if (document.querySelector('style[data-fallback-ui]')) return;
+    // If tailwind is present, skip fallback
+    if (window.tailwind?.version) return;
+    const s = document.createElement('style');
+    s.setAttribute('data-fallback-ui','1');
+    s.innerHTML = `
+      :root{--bg:#f7f9fc;--card:#ffffff;--txt:#111827;--muted:#6b7280;--br:#e5e7eb;--primary:#6d28d9;}
+      html,body{height:100%}
+      body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,'Apple Color Emoji','Segoe UI Emoji';background:var(--bg);color:var(--txt)}
+      h1,h2,h3{margin:0 0 8px}
+      .rounded-2xl{border-radius:16px}
+      .border{border:1px solid var(--br)}
+      .shadow-sm{box-shadow:0 1px 2px rgba(0,0,0,.06)}
+      .p-4{padding:16px}
+      .mb-6{margin-bottom:24px}
+      .text-sm{font-size:14px}
+      .text-xs{font-size:12px}
+      .font-semibold{font-weight:600}
+      .text-gray-500{color:var(--muted)}
+      input,select,textarea{width:100%;padding:8px 12px;font-size:14px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:var(--txt)}
+      button{border-radius:8px;padding:8px 14px;font-size:14px;font-weight:600;border:1px solid #d1d5db;background:#fff;color:#1f2937;cursor:pointer}
+      button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+      button.subtle{background:#f3f4f6}
+      button.danger{background:#dc2626;border-color:#dc2626;color:#fff}
+      table{border-collapse:collapse;width:100%}
+      thead{background:#f9fafb;font-size:12px;text-transform:uppercase;color:#6b7280}
+      th,td{padding:8px;border-bottom:1px solid #eef2f7}
+      tr:hover td{background:#fafafa}
+      .card{background:var(--card);border:1px solid var(--br);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+      .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+      .grid2{display:grid;grid-template-columns:1fr;gap:24px}
+      @media (min-width:768px){.grid2{grid-template-columns:1fr 1fr}}
+      .container{max-width:960px;margin:0 auto;padding:24px}
+    `;
+    document.head.appendChild(s);
+  },[]);
+
   const parentOptions = useMemo(()=>{
     if(form.type==="System") return [];
     if(form.type==="Subsystem") return nodes.filter(n=>n.type==="System").sort(byName);
