@@ -453,6 +453,16 @@ function addNode() {
     if (type === "System" && hasSystem) { alert("Only one System is allowed. Delete the existing System first."); return; }
 
     let parent = nodes.find((n) => n.id === parentId) || null;
+
+    // Fallback defensif
+if (!parent && (type === "Subsystem" || type === "Component")) {
+  try {
+    const domVal = (document.getElementById("addParentSelect") || {}).value || "";
+    if (domVal) {
+      parent = nodes.find((n) => n.id === domVal) || null;
+    }
+  } catch {}
+}
     let lvl = null;
 
 if (type === "Subsystem") {
@@ -461,16 +471,13 @@ if (type === "Subsystem") {
   if (!Number.isFinite(v) || v < 1) { alert("Subsystem Level must be a number >= 1"); return; }
   lvl = v;
 
-  // --- VALIDASI ROBUST UNTUK PARENT YANG SUDAH DIPILIH USER ---
-  if (parentId) {
-    if (!parent) { alert("Selected Parent not found. Please reselect."); return; }
-
-    // Ambil level parent secara fleksibel: dukung "3", "03", "L3", "Level 3", dsb.
+  // --- VALIDASI ROBUST PARENT YANG SUDAH DIPILIH USER ---
+  if (parent) {
+    // Ekstrak level angka dari parent (dukung "3", "L3", "Level 3", dsb)
     const parentLevelNum = (() => {
-      if (parent.type === "System") return 0; // treat System as level 0 untuk perbandingan L1
+      if (parent.type === "System") return 0; // treat System sebagai level 0 (untuk L1)
       const raw = parent.level;
       if (raw == null) return NaN;
-      // ekstrak digit pertama yang bermakna
       const m = String(raw).match(/\d+/);
       return m ? Number(m[0]) : NaN;
     })();
@@ -492,7 +499,6 @@ if (type === "Subsystem") {
     const candidates = v === 1
       ? nodes.filter((n) => n.type === "System")
       : nodes.filter((n) => n.type === "Subsystem" && (()=>{
-          // dukung level kandidat yang mungkin string
           const m = String(n.level ?? "").match(/\d+/);
           const candidateLevel = m ? Number(m[0]) : NaN;
           return candidateLevel === v - 1;
@@ -510,7 +516,6 @@ if (type === "Subsystem") {
     }
   }
 }
-
 
     if (type === "Component") {
       const candidates = nodes.filter((n) => n.type === "Subsystem" || n.type === "System");
@@ -801,6 +806,7 @@ if (type === "Subsystem") {
               <div>
                 <Label>Parent {type === "System" ? "(auto empty)" : ""}</Label>
                 <Select
+                  id="addParentSelect"
                   value={parentId}
                   onChange={(e) => { setUserTouchedParent(true); setParentId(e.target.value); }}
                   disabled={type === "System"}
