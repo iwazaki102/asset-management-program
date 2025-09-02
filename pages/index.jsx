@@ -454,14 +454,25 @@ function addNode() {
 
     let parent = nodes.find((n) => n.id === parentId) || null;
 
-    // Fallback defensif
-if (!parent && (type === "Subsystem" || type === "Component")) {
+// Helper: ambil parentId langsung dari DOM Select (Form Add)
+function getSelectedParentIdFromDOM() {
   try {
-    const domVal = (document.getElementById("addParentSelect") || {}).value || "";
-    if (domVal) {
-      parent = nodes.find((n) => n.id === domVal) || null;
-    }
-  } catch {}
+    const el = document.getElementById("addParentSelect");
+    const val = el && el.value ? String(el.value) : "";
+    return val || "";
+  } catch { return ""; }
+}
+
+// Utamakan nilai terbaru dari DOM Select dibanding state (mengatasi race)
+let domParentId = "";
+if (type === "Subsystem" || type === "Component") {
+  domParentId = getSelectedParentIdFromDOM();
+}
+let effectiveParentId = domParentId || parentId || "";
+
+// Sinkronkan objek parent berdasar effectiveParentId
+if (!parent || (effectiveParentId && parent.id !== effectiveParentId)) {
+  parent = effectiveParentId ? (nodes.find((n) => n.id === effectiveParentId) || null) : null;
 }
     let lvl = null;
 
@@ -471,11 +482,10 @@ if (type === "Subsystem") {
   if (!Number.isFinite(v) || v < 1) { alert("Subsystem Level must be a number >= 1"); return; }
   lvl = v;
 
-  // --- VALIDASI ROBUST PARENT YANG SUDAH DIPILIH USER ---
   if (parent) {
-    // Ekstrak level angka dari parent (dukung "3", "L3", "Level 3", dsb)
+    // Baca level parent robust (dukung "2", "L2", "Level 2", dst.)
     const parentLevelNum = (() => {
-      if (parent.type === "System") return 0; // treat System sebagai level 0 (untuk L1)
+      if (parent.type === "System") return 0; // treat System as 0 untuk perbandingan L1
       const raw = parent.level;
       if (raw == null) return NaN;
       const m = String(raw).match(/\d+/);
@@ -495,7 +505,7 @@ if (type === "Subsystem") {
       return;
     }
   } else {
-    // --- USER BELUM PILIH PARENT → bantu pilih atau minta pilih ---
+    // User belum pilih parent → bantu pilih atau minta pilih
     const candidates = v === 1
       ? nodes.filter((n) => n.type === "System")
       : nodes.filter((n) => n.type === "Subsystem" && (()=>{
@@ -506,7 +516,8 @@ if (type === "Subsystem") {
 
     if (candidates.length === 1) {
       parent = candidates[0];
-      setParentId(candidates[0].id);
+      // catat ke state agar konsisten setelah insert
+      try { setParentId(candidates[0].id); } catch {}
     } else if (candidates.length === 0) {
       alert(v === 1 ? "Please add a System first." : `Please create Subsystem L${v - 1} first.`);
       return;
@@ -805,17 +816,21 @@ if (type === "Subsystem") {
               </div>
               <div>
                 <Label>Parent {type === "System" ? "(auto empty)" : ""}</Label>
-                <Select
-                  id="addParentSelect"
-                  value={parentId}
-                  onChange={(e) => { setUserTouchedParent(true); setParentId(e.target.value); }}
-                  disabled={type === "System"}
-                >
-                  {type === "System" ? <option value="">— None (Root) —</option> : null}
-                  {addParentOptions.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.type}{p.type === "Subsystem" && p.level != null ? ` L${p.level}` : ""})</option>
-                  ))}
-                </Select>
+               <Select
+  id="addParentSelect"                 // <-- wajib ada
+  value={parentId}
+  onChange={(e) => { setUserTouchedParent(true); setParentId(e.target.value); }}
+  disabled={type === "System"}
+>
+  {type !== "System" && (<option value="">— Select Parent —</option>)}
+  {type === "System" ? <option value="">— None (Root) —</option> : null}
+  {addParentOptions.map((p) => (
+    <option key={p.id} value={p.id}>
+      {p.name} ({p.type}{p.type === "Subsystem" && p.level != null ? ` L${p.level}` : ""})
+    </option>
+  ))}
+</Select>
+
               </div>
               <div className="flex items-center gap-2">
                 <Button onClick={addNode}>Add</Button>
