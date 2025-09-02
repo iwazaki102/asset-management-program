@@ -455,34 +455,62 @@ function addNode() {
     let parent = nodes.find((n) => n.id === parentId) || null;
     let lvl = null;
 
-    if (type === "Subsystem") {
-      if (!subsystemLevel.trim()) { alert("Enter Subsystem Level (number)"); return; }
-      const v = Number(subsystemLevel);
-      if (!Number.isFinite(v) || v < 1) { alert("Subsystem Level must be a number >= 1"); return; }
-      lvl = v;
+if (type === "Subsystem") {
+  if (!subsystemLevel.trim()) { alert("Enter Subsystem Level (number)"); return; }
+  const v = Number(subsystemLevel);
+  if (!Number.isFinite(v) || v < 1) { alert("Subsystem Level must be a number >= 1"); return; }
+  lvl = v;
 
-      // PENGECEKAN LANGSUNG (menghindari false error pada L4/L5/L6)
-      if (parentId) {
-        if (!parent) { alert("Selected Parent not found. Please reselect."); return; }
-        const valid = (v === 1)
-          ? (parent.type === "System")
-          : (parent.type === "Subsystem" && Number(parent.level) === v - 1);
-        if (!valid) {
-          alert(v === 1
-            ? "Selected Parent must be a System for Subsystem L1"
-            : `Selected Parent must be Subsystem L${v - 1} for Subsystem L${v}`
-          );
-          return;
-        }
-      } else {
-        const candidates = v === 1
-          ? nodes.filter((n) => n.type === "System")
-          : nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === v - 1);
-        if (candidates.length === 1) { parent = candidates[0]; setParentId(candidates[0].id); }
-        else if (candidates.length === 0) { alert(v === 1 ? "Please add a System first." : `Please create Subsystem L${v - 1} first.`); return; }
-        else { alert(`Multiple parents found. Please choose a Parent (${v === 1 ? "System" : `Subsystem L${v - 1}`}).`); return; }
-      }
+  // --- VALIDASI ROBUST UNTUK PARENT YANG SUDAH DIPILIH USER ---
+  if (parentId) {
+    if (!parent) { alert("Selected Parent not found. Please reselect."); return; }
+
+    // Ambil level parent secara fleksibel: dukung "3", "03", "L3", "Level 3", dsb.
+    const parentLevelNum = (() => {
+      if (parent.type === "System") return 0; // treat System as level 0 untuk perbandingan L1
+      const raw = parent.level;
+      if (raw == null) return NaN;
+      // ekstrak digit pertama yang bermakna
+      const m = String(raw).match(/\d+/);
+      return m ? Number(m[0]) : NaN;
+    })();
+
+    const isValid =
+      (v === 1 && parent.type === "System") ||
+      (v > 1 && parent.type === "Subsystem" && parentLevelNum === v - 1);
+
+    if (!isValid) {
+      alert(
+        v === 1
+          ? "Selected Parent must be a System for Subsystem L1"
+          : `Selected Parent must be Subsystem L${v - 1} for Subsystem L${v}`
+      );
+      return;
     }
+  } else {
+    // --- USER BELUM PILIH PARENT → bantu pilih atau minta pilih ---
+    const candidates = v === 1
+      ? nodes.filter((n) => n.type === "System")
+      : nodes.filter((n) => n.type === "Subsystem" && (()=>{
+          // dukung level kandidat yang mungkin string
+          const m = String(n.level ?? "").match(/\d+/);
+          const candidateLevel = m ? Number(m[0]) : NaN;
+          return candidateLevel === v - 1;
+        })());
+
+    if (candidates.length === 1) {
+      parent = candidates[0];
+      setParentId(candidates[0].id);
+    } else if (candidates.length === 0) {
+      alert(v === 1 ? "Please add a System first." : `Please create Subsystem L${v - 1} first.`);
+      return;
+    } else {
+      alert(`Multiple parents found. Please choose a Parent (${v === 1 ? "System" : `Subsystem L${v - 1}`}).`);
+      return;
+    }
+  }
+}
+
 
     if (type === "Component") {
       const candidates = nodes.filter((n) => n.type === "Subsystem" || n.type === "System");
