@@ -403,141 +403,152 @@ export default function HomePage() {
 
   function pushHistory() { setHistory((h) => [JSON.parse(JSON.stringify(nodes)), ...h].slice(0, 50)); }
 
-  // ==== AUTO-DEFAULT PARENT (Patched - tidak menimpa pilihan user) ====
-  useEffect(() => {
-    if (userTouchedParent) return; // hormati pilihan user
+  // ==== AUTO-DEFAULT PARENT (Patched v17.15.2) ====
+// - Hormati pilihan user (userTouchedParent = true)
+// - Jika level berubah dan parent lama tidak valid utk level baru,
+//   kosongkan parent (atau auto-pick bila hanya 1 kandidat)
+useEffect(() => {
+  if (userTouchedParent) return;
 
-    if (type === "Subsystem") {
-      const lv = Number(subsystemLevel);
-      if (!Number.isFinite(lv) || lv < 1) return;
+  if (type === "Subsystem") {
+    const lv = Number(subsystemLevel);
+    if (!Number.isFinite(lv) || lv < 1) return;
 
-      const candidates = lv === 1
-        ? nodes.filter((n) => n.type === "System")
-        : nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === lv - 1);
+    const candidates = lv === 1
+      ? nodes.filter((n) => n.type === "System")
+      : nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === lv - 1);
 
-      if (parentId && candidates.some((c) => c.id === parentId)) return; // valid → biarkan
-      if (!parentId && candidates.length === 1) setParentId(candidates[0].id); // auto hanya jika 1 kandidat
-      return;
+    // Masih valid? biarkan
+    if (parentId && candidates.some((c) => c.id === parentId)) return;
+
+    // Tidak valid → auto-pick jika 1 kandidat; selain itu kosongkan
+    if (candidates.length === 1) {
+      setParentId(candidates[0].id);
+    } else {
+      if (parentId !== "") setParentId("");
     }
+    return;
+  }
 
-    if (type === "Component") {
-      const candidates = nodes.filter((n) => n.type === "Subsystem" || n.type === "System");
-      if (parentId && candidates.some((c) => c.id === parentId)) return;
-      if (!parentId && candidates.length === 1) setParentId(candidates[0].id);
-      return;
-    }
+  if (type === "Component") {
+    const candidates = nodes.filter((n) => n.type === "Subsystem" || n.type === "System");
+    if (parentId && candidates.some((c) => c.id === parentId)) return;
+    if (!parentId && candidates.length === 1) setParentId(candidates[0].id);
+    return;
+  }
 
-    if (type === "System") {
-      if (parentId) setParentId(""); // System selalu root
-    }
-  // sengaja tanpa dependency parentId untuk mencegah loop
-  }, [type, subsystemLevel, nodes, userTouchedParent]);
+  if (type === "System") {
+    if (parentId) setParentId(""); // System = root
+  }
+}, [type, subsystemLevel, nodes, userTouchedParent]); // sengaja tanpa parentId utk hindari loop
+
 
 
 //----------CHUNK 3---------------
 
   // ==== CRUD (Add / Edit / Delete) ====
 
-  function addNode() {
-    try {
-      const nm = name.trim();
-      if (!nm) { alert("Name is required"); return; }
+function addNode() {
+  try {
+    const nm = name.trim();
+    if (!nm) { alert("Name is required"); return; }
 
-      // Single System
-      if (type === "System" && hasSystem) { alert("Only one System is allowed. Delete the existing System first."); return; }
+    // Single System
+    if (type === "System" && hasSystem) { alert("Only one System is allowed. Delete the existing System first."); return; }
 
-      let parent = nodes.find((n) => n.id === parentId) || null;
-      let lvl = null;
+    let parent = nodes.find((n) => n.id === parentId) || null;
+    let lvl = null;
 
-      if (type === "Subsystem") {
-        if (!subsystemLevel.trim()) { alert("Enter Subsystem Level (number)"); return; }
-        const v = Number(subsystemLevel);
-        if (!Number.isFinite(v) || v < 1) { alert("Subsystem Level must be a number >= 1"); return; }
-        lvl = v;
+    if (type === "Subsystem") {
+      if (!subsystemLevel.trim()) { alert("Enter Subsystem Level (number)"); return; }
+      const v = Number(subsystemLevel);
+      if (!Number.isFinite(v) || v < 1) { alert("Subsystem Level must be a number >= 1"); return; }
+      lvl = v;
 
+      // PENGECEKAN LANGSUNG (menghindari false error pada L4/L5/L6)
+      if (parentId) {
+        if (!parent) { alert("Selected Parent not found. Please reselect."); return; }
+        const valid = (v === 1)
+          ? (parent.type === "System")
+          : (parent.type === "Subsystem" && Number(parent.level) === v - 1);
+        if (!valid) {
+          alert(v === 1
+            ? "Selected Parent must be a System for Subsystem L1"
+            : `Selected Parent must be Subsystem L${v - 1} for Subsystem L${v}`
+          );
+          return;
+        }
+      } else {
         const candidates = v === 1
           ? nodes.filter((n) => n.type === "System")
           : nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === v - 1);
-
-        if (parentId) {
-          // USER SUDAH PILIH → tidak prompt multiple-candidates
-          if (!parent) { alert("Selected Parent not found. Please reselect."); return; }
-          if (!candidates.some((c) => c.id === parent.id)) {
-            alert(v === 1
-              ? "Selected Parent must be a System for Subsystem L1"
-              : `Selected Parent must be Subsystem L${v - 1} for Subsystem L${v}`
-            );
-            return;
-          }
-        } else {
-          // USER BELUM PILIH → bantu pilih
-          if (candidates.length === 1) { parent = candidates[0]; setParentId(candidates[0].id); }
-          else if (candidates.length === 0) { alert(v === 1 ? "Please add a System first." : `Please create Subsystem L${v - 1} first.`); return; }
-          else { alert(`Multiple parents found. Please choose a Parent (${v === 1 ? "System" : `Subsystem L${v - 1}`}).`); return; }
-        }
+        if (candidates.length === 1) { parent = candidates[0]; setParentId(candidates[0].id); }
+        else if (candidates.length === 0) { alert(v === 1 ? "Please add a System first." : `Please create Subsystem L${v - 1} first.`); return; }
+        else { alert(`Multiple parents found. Please choose a Parent (${v === 1 ? "System" : `Subsystem L${v - 1}`}).`); return; }
       }
-
-      if (type === "Component") {
-        const candidates = nodes.filter((n) => n.type === "Subsystem" || n.type === "System");
-
-        if (parentId) {
-          if (!parent) { alert("Selected Parent not found. Please reselect."); return; }
-          // parent exists → lanjut ke rule check
-        } else {
-          if (candidates.length === 1) { parent = candidates[0]; setParentId(candidates[0].id); }
-          else if (candidates.length === 0) { alert("Please add a System or a Subsystem first."); return; }
-          else { alert("Multiple parents found. Please choose a Parent (System or Subsystem)."); return; }
-        }
-      }
-
-      // Rule check (termasuk Component/System)
-      const rule = checkParentRule(type, lvl, parent);
-      if (!rule.ok) { alert(rule.err); return; }
-
-      // Duplicate handling (sama seperti baseline)
-      const key = { id: "", name: nm, type, level: lvl, parentId: parent ? parent.id : null };
-      const dupe = findDuplicateNode(nodes, key);
-      if (dupe) {
-        const overwrite = confirm(
-          `Duplicate detected in the same level (Type/Parent/Name).\n\nName: ${nm}\nType: ${type}${type === "Subsystem" && lvl ? ` L${lvl}` : ""}\nParent: ${parent ? parent.name : "-"}\n\nOK = Overwrite existing, Cancel = Insert with index (e.g., ${nm}(1))`
-        );
-        if (overwrite) {
-          pushHistory();
-          setNodes((prev) => prev.map((x) =>
-            x.id === dupe.id
-              ? { ...x, name: nm, type, parentId: parent ? parent.id : null, level: type === "Subsystem" ? lvl : null, createdAt: safeNow() }
-              : x
-          ));
-          setName(""); if (type !== "Subsystem") setSubsystemLevel("");
-          return;
-        } else {
-          const siblings = nodes
-            .filter((x) => {
-              if (String(x.type) !== String(type)) return false;
-              if (String(x.parentId || "") !== String(parent ? parent.id : "")) return false;
-              if (type === "Subsystem" && Number(x.level) !== Number(lvl)) return false;
-              return true;
-            })
-            .map((x) => x.name);
-          key.name = nextIndexedName(nm, siblings);
-        }
-      }
-
-      pushHistory();
-      const newNode = {
-        id: uid(),
-        name: key.name || nm,
-        type,
-        parentId: parent ? parent.id : null,
-        level: type === "Subsystem" ? lvl : null,
-        createdAt: safeNow()
-      };
-      setNodes((prev) => [newNode, ...prev]);
-      setName(""); if (type !== "Subsystem") setSubsystemLevel("");
-    } catch (err) {
-      alert("Failed to add node: " + (err && err.message ? err.message : String(err)));
     }
+
+    if (type === "Component") {
+      const candidates = nodes.filter((n) => n.type === "Subsystem" || n.type === "System");
+      if (parentId) {
+        if (!parent) { alert("Selected Parent not found. Please reselect."); return; }
+        // parent ada → lanjut ke rule check
+      } else {
+        if (candidates.length === 1) { parent = candidates[0]; setParentId(candidates[0].id); }
+        else if (candidates.length === 0) { alert("Please add a System or a Subsystem first."); return; }
+        else { alert("Multiple parents found. Please choose a Parent (System or Subsystem)."); return; }
+      }
+    }
+
+    // Rule check final
+    const rule = checkParentRule(type, lvl, parent);
+    if (!rule.ok) { alert(rule.err); return; }
+
+    // Duplicate handling (tetap sama)
+    const key = { id: "", name: nm, type, level: lvl, parentId: parent ? parent.id : null };
+    const dupe = findDuplicateNode(nodes, key);
+    if (dupe) {
+      const overwrite = confirm(
+        `Duplicate detected in the same level (Type/Parent/Name).\n\nName: ${nm}\nType: ${type}${type === "Subsystem" && lvl ? ` L${lvl}` : ""}\nParent: ${parent ? parent.name : "-"}\n\nOK = Overwrite existing, Cancel = Insert with index (e.g., ${nm}(1))`
+      );
+      if (overwrite) {
+        pushHistory();
+        setNodes((prev) => prev.map((x) =>
+          x.id === dupe.id
+            ? { ...x, name: nm, type, parentId: parent ? parent.id : null, level: type === "Subsystem" ? lvl : null, createdAt: safeNow() }
+            : x
+        ));
+        setName(""); if (type !== "Subsystem") setSubsystemLevel("");
+        return;
+      } else {
+        const siblings = nodes
+          .filter((x) => {
+            if (String(x.type) !== String(type)) return false;
+            if (String(x.parentId || "") !== String(parent ? parent.id : "")) return false;
+            if (type === "Subsystem" && Number(x.level) !== Number(lvl)) return false;
+            return true;
+          })
+          .map((x) => x.name);
+        key.name = nextIndexedName(nm, siblings);
+      }
+    }
+
+    pushHistory();
+    const newNode = {
+      id: uid(),
+      name: key.name || nm,
+      type,
+      parentId: parent ? parent.id : null,
+      level: type === "Subsystem" ? lvl : null,
+      createdAt: safeNow()
+    };
+    setNodes((prev) => [newNode, ...prev]);
+    setName(""); if (type !== "Subsystem") setSubsystemLevel("");
+  } catch (err) {
+    alert("Failed to add node: " + (err && err.message ? err.message : String(err)));
   }
+}
+
 
   function beginEdit(n) { setPendingDeleteId(""); setEditingId(n.id); setEditName(n.name); setEditType(n.type); setEditParentId(n.parentId || ""); setEditLevel(n.type === "Subsystem" && n.level != null ? String(n.level) : ""); }
   function cancelEdit() { setEditingId(""); setEditName(""); setEditType("System"); setEditParentId(""); setEditLevel(""); }
@@ -760,7 +771,7 @@ export default function HomePage() {
                 </Select>
               </div>
               <div>
-                <Label>Subsystem Level {type !== "Subsystem" ? "(active when Type = Subsystem)" : ""}</Label>
+                <Label>Subsystem Level</Label>
                 <TextInput type="number" min={1} step={1} placeholder="e.g. 1, 2, 3" value={subsystemLevel} onChange={(e) => setSubsystemLevel(e.target.value)} disabled={type !== "Subsystem"} />
               </div>
               <div>
