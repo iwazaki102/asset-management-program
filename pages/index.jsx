@@ -855,7 +855,7 @@ function addNode() {
                     </Select>
                   </div>
                   <div>
-                    <Label>Subsystem Level {editType !== "Subsystem" ? "(active when Type = Subsystem)" : ""}</Label>
+                    <Label>Subsystem Level</Label>
                     <TextInput type="number" min={1} step={1} value={editLevel} onChange={(e) => setEditLevel(e.target.value)} disabled={editType !== "Subsystem"} />
                   </div>
                   <div>
