@@ -403,10 +403,10 @@ export default function HomePage() {
 
   function pushHistory() { setHistory((h) => [JSON.parse(JSON.stringify(nodes)), ...h].slice(0, 50)); }
 
-  // ==== AUTO-DEFAULT PARENT (Patched v17.15.2) ====
+// ==== AUTO-DEFAULT PARENT (Patched v17.15.3) ====
 // - Hormati pilihan user (userTouchedParent = true)
-// - Jika level berubah dan parent lama tidak valid utk level baru,
-//   kosongkan parent (atau auto-pick bila hanya 1 kandidat)
+// - Auto-set parent hanya jika PERSIS 1 kandidat
+// - Tidak lagi mengosongkan parentId ketika kandidat > 1 (hindari race kosong)
 useEffect(() => {
   if (userTouchedParent) return;
 
@@ -418,15 +418,11 @@ useEffect(() => {
       ? nodes.filter((n) => n.type === "System")
       : nodes.filter((n) => n.type === "Subsystem" && Number(n.level) === lv - 1);
 
-    // Masih valid? biarkan
+    // pilihan saat ini masih valid? biarkan
     if (parentId && candidates.some((c) => c.id === parentId)) return;
 
-    // Tidak valid → auto-pick jika 1 kandidat; selain itu kosongkan
-    if (candidates.length === 1) {
-      setParentId(candidates[0].id);
-    } else {
-      if (parentId !== "") setParentId("");
-    }
+    // auto-pick hanya jika tepat 1 kandidat; kalau 0 atau >1 → biarkan apa adanya
+    if (!parentId && candidates.length === 1) setParentId(candidates[0].id);
     return;
   }
 
@@ -440,8 +436,8 @@ useEffect(() => {
   if (type === "System") {
     if (parentId) setParentId(""); // System = root
   }
-}, [type, subsystemLevel, nodes, userTouchedParent]); // sengaja tanpa parentId utk hindari loop
-
+// penting: jangan masukkan parentId agar tak looping
+}, [type, subsystemLevel, nodes, userTouchedParent]);
 
 
 //----------CHUNK 3---------------
